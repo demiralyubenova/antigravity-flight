@@ -4,7 +4,7 @@ import { CategoryTabs } from '@/components/wardrobe/CategoryTabs';
 import { ClothingGrid } from '@/components/wardrobe/ClothingGrid';
 import { AddItemDialog } from '@/components/wardrobe/AddItemDialog';
 import { useClothingItems } from '@/hooks/useClothingItems';
-import { ClothingCategory, ALL_CATEGORIES } from '@/types/wardrobe';
+import { ClothingCategory } from '@/types/wardrobe';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,11 +22,14 @@ export default function Wardrobe() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ClothingItem | null>(null);
   
+  // Get all items for counting
+  const { items: allItems } = useClothingItems('all');
+  
+  // Get filtered items based on active category
   const { items, isLoading, addItem, deleteItem } = useClothingItems(activeCategory);
 
   // Calculate item counts for each category
   const itemCounts = useMemo(() => {
-    const { items: allItems } = useClothingItems('all');
     const counts: Record<ClothingCategory | 'all', number> = {
       all: allItems.length,
       tops: 0,
@@ -42,7 +45,7 @@ export default function Wardrobe() {
     });
     
     return counts;
-  }, []);
+  }, [allItems]);
 
   const handleAddItem = (item: {
     name: string;
