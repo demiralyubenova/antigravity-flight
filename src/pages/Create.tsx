@@ -2,27 +2,33 @@ import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Palette, Loader2, Sparkles, X, Plus, Eye } from 'lucide-react';
+import { Loader2, Sparkles, Eye, RefreshCw } from 'lucide-react';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { ClothingItem, CATEGORY_LABELS, ClothingCategory } from '@/types/wardrobe';
+import { ClothingItem } from '@/types/wardrobe';
 import { cn } from '@/lib/utils';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
+
+interface OutfitSuggestion {
+  name: string;
+  description: string;
+  itemIds: string[];
+  items?: ClothingItem[];
+}
 
 export default function Create() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { items: wardrobeItems } = useClothingItems('all');
-  const [selectedItems, setSelectedItems] = useState<ClothingItem[]>([]);
   const [occasion, setOccasion] = useState('');
   const [loading, setLoading] = useState(false);
-  const [tryOnLoading, setTryOnLoading] = useState(false);
-  const [tryOnResult, setTryOnResult] = useState<string | null>(null);
+  const [tryOnLoading, setTryOnLoading] = useState<number | null>(null);
+  const [outfitSuggestions, setOutfitSuggestions] = useState<OutfitSuggestion[]>([]);
+  const [tryOnResults, setTryOnResults] = useState<Record<number, string>>({});
   const [personImage, setPersonImage] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<ClothingCategory | 'all'>('all');
+  const [recentOutfits, setRecentOutfits] = useState<any[]>([]);
 
   // Load user's avatar for try-on
   useEffect(() => {
@@ -43,6 +49,37 @@ export default function Create() {
     loadAvatar();
   }, [user]);
 
+  // Load recent outfits to avoid suggesting similar ones
+  useEffect(() => {
+    if (!user) return;
+
+    const loadRecentOutfits = async () => {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data } = await supabase
+        .from('outfits')
+        .select('*, item_ids')
+        .eq('user_id', user.id)
+        .gte('worn_at', thirtyDaysAgo.toISOString())
+        .order('worn_at', { ascending: false })
+        .limit(10);
+
+      if (data) {
+        // Map item_ids to actual items
+        const outfitsWithItems = data.map(outfit => ({
+          ...outfit,
+          items: wardrobeItems.filter(item => outfit.item_ids.includes(item.id))
+        }));
+        setRecentOutfits(outfitsWithItems);
+      }
+    };
+
+    if (wardrobeItems.length > 0) {
+      loadRecentOutfits();
+    }
+  }, [user, wardrobeItems]);
+
   const occasionSuggestions = [
     'Business Meeting',
     'Date Night',
@@ -50,41 +87,29 @@ export default function Create() {
     'Wedding Guest',
     'Job Interview',
     'Beach Day',
+    'Gym Session',
+    'Night Out',
   ];
 
-  const categories: (ClothingCategory | 'all')[] = ['all', 'tops', 'bottoms', 'outerwear', 'dresses', 'shoes', 'accessories'];
-
-  const filteredItems = activeCategory === 'all' 
-    ? wardrobeItems 
-    : wardrobeItems.filter(item => item.category === activeCategory);
-
-  const toggleItem = (item: ClothingItem) => {
-    setSelectedItems(prev => {
-      const isSelected = prev.some(i => i.id === item.id);
-      if (isSelected) {
-        return prev.filter(i => i.id !== item.id);
-      }
-      return [...prev, item];
-    });
-    setTryOnResult(null);
-  };
-
-  const removeItem = (itemId: string) => {
-    setSelectedItems(prev => prev.filter(i => i.id !== itemId));
-    setTryOnResult(null);
-  };
-
-  const handleAISuggest = async () => {
+  const handleGenerateOutfits = async () => {
     if (!occasion) {
       toast({ title: 'Enter an occasion first', variant: 'destructive' });
       return;
     }
 
+    if (wardrobeItems.length === 0) {
+      toast({ title: 'Add some items to your wardrobe first', variant: 'destructive' });
+      return;
+    }
+
     setLoading(true);
+    setOutfitSuggestions([]);
+    setTryOnResults({});
+
     try {
-      const { data, error } = await supabase.functions.invoke('stylist-chat', {
+      const { data, error } = await supabase.functions.invoke('generate-outfits', {
         body: {
-          message: `Create a complete outfit for: ${occasion}. Select specific items from my wardrobe that work well together. List the exact item names I should use.`,
+          occasion,
           wardrobeItems: wardrobeItems.map(item => ({
             id: item.id,
             name: item.name,
@@ -92,25 +117,46 @@ export default function Create() {
             color: item.color,
             brand: item.brand,
           })),
-          recentOutfits: [],
+          recentOutfits: recentOutfits.map(outfit => ({
+            worn_at: outfit.worn_at,
+            items: outfit.items?.map((i: ClothingItem) => ({ name: i.name })),
+          })),
         },
       });
 
       if (error) throw error;
 
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      if (data.outfits && Array.isArray(data.outfits)) {
+        // Map item IDs to actual items
+        const suggestionsWithItems = data.outfits.map((outfit: OutfitSuggestion) => ({
+          ...outfit,
+          items: outfit.itemIds
+            .map(id => wardrobeItems.find(item => item.id === id))
+            .filter(Boolean) as ClothingItem[],
+        }));
+
+        setOutfitSuggestions(suggestionsWithItems);
+        toast({ title: '✨ 3 outfit options ready!' });
+      }
+    } catch (error: any) {
+      console.error('Error generating outfits:', error);
       toast({ 
-        title: 'AI Suggestion Ready', 
-        description: 'Check the stylist chat for outfit recommendations!',
+        title: 'Failed to generate outfits', 
+        description: error.message || 'Please try again',
+        variant: 'destructive' 
       });
-    } catch (error) {
-      console.error('Error getting AI suggestion:', error);
-      toast({ title: 'Failed to get suggestion', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleTryOn = async () => {
+  const handleTryOn = async (index: number) => {
+    const outfit = outfitSuggestions[index];
+    
     if (!personImage) {
       toast({ 
         title: 'No photo found', 
@@ -120,17 +166,17 @@ export default function Create() {
       return;
     }
 
-    if (selectedItems.length === 0) {
-      toast({ title: 'Select at least one item', variant: 'destructive' });
+    if (!outfit.items || outfit.items.length === 0) {
+      toast({ title: 'No items in this outfit', variant: 'destructive' });
       return;
     }
 
-    setTryOnLoading(true);
+    setTryOnLoading(index);
     try {
       const { data, error } = await supabase.functions.invoke('outfit-tryon', {
         body: {
           personImageUrl: personImage,
-          clothingItems: selectedItems.map(item => ({
+          clothingItems: outfit.items.map(item => ({
             name: item.name,
             category: item.category,
             image_url: item.image_url,
@@ -145,8 +191,8 @@ export default function Create() {
       }
 
       if (data.tryOnImageUrl) {
-        setTryOnResult(data.tryOnImageUrl);
-        toast({ title: 'Outfit try-on complete!' });
+        setTryOnResults(prev => ({ ...prev, [index]: data.tryOnImageUrl }));
+        toast({ title: 'Try-on complete!' });
       }
     } catch (error: any) {
       console.error('Error in outfit try-on:', error);
@@ -156,82 +202,58 @@ export default function Create() {
         variant: 'destructive' 
       });
     } finally {
-      setTryOnLoading(false);
+      setTryOnLoading(null);
     }
   };
 
   return (
-    <AppLayout title="Outfit Creator" subtitle="Build and try on complete outfits">
+    <AppLayout title="Outfit Creator" subtitle="AI-powered outfit suggestions">
       <div className="pb-24 space-y-6">
-        {/* Selected Items Preview */}
-        <div className="px-4">
-          <h3 className="font-display text-sm font-medium text-muted-foreground mb-3">
-            Your Outfit ({selectedItems.length} items)
-          </h3>
-          
-          {selectedItems.length === 0 ? (
-            <div className="h-24 rounded-xl border-2 border-dashed border-border flex items-center justify-center">
-              <p className="text-sm text-muted-foreground">Select items below to build your outfit</p>
-            </div>
-          ) : (
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {selectedItems.map(item => (
-                <div key={item.id} className="relative flex-shrink-0">
-                  <div className="w-20 h-24 rounded-lg overflow-hidden bg-muted border-2 border-primary">
-                    <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute -top-2 -right-2 h-6 w-6"
-                    onClick={() => removeItem(item.id)}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                  <p className="text-xs text-center mt-1 truncate w-20">{item.name}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Try On Result */}
-        {tryOnResult && (
-          <div className="px-4">
-            <h3 className="font-display text-sm font-medium text-muted-foreground mb-3">Try-On Result</h3>
-            <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-2xl overflow-hidden bg-muted">
-              <img src={tryOnResult} alt="Outfit try-on" className="w-full h-full object-cover" />
-              <div className="absolute bottom-3 left-3 right-3">
-                <div className="bg-background/90 backdrop-blur-sm rounded-lg px-3 py-2 text-center">
-                  <span className="text-sm font-medium text-primary">✨ Your Complete Look</span>
-                </div>
-              </div>
-            </div>
+        {/* Occasion Input */}
+        <div className="px-4 space-y-4">
+          <div className="text-center space-y-2">
+            <h2 className="text-lg font-display font-semibold text-foreground">
+              What's the occasion?
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Tell me where you're going and I'll create 3 outfit options from your wardrobe
+            </p>
           </div>
-        )}
 
-        {/* AI Suggestion */}
-        <div className="px-4 space-y-3">
-          <label className="text-sm font-medium text-foreground block">
-            Get AI outfit suggestions
-          </label>
           <div className="flex gap-2">
             <Input
               value={occasion}
               onChange={(e) => setOccasion(e.target.value)}
-              placeholder="What's the occasion?"
-              className="flex-1"
+              placeholder="e.g., Business meeting, date night..."
+              className="flex-1 h-12"
+              onKeyDown={(e) => e.key === 'Enter' && handleGenerateOutfits()}
             />
-            <Button onClick={handleAISuggest} disabled={!occasion || loading} variant="secondary">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            <Button 
+              onClick={handleGenerateOutfits} 
+              disabled={!occasion || loading} 
+              className="h-12 px-6 gap-2"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {loading ? 'Creating...' : 'Create'}
             </Button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {occasionSuggestions.slice(0, 4).map((suggestion) => (
+
+          {/* Quick Occasion Suggestions */}
+          <div className="flex flex-wrap gap-2 justify-center">
+            {occasionSuggestions.map((suggestion) => (
               <button
                 key={suggestion}
                 onClick={() => setOccasion(suggestion)}
-                className="px-2.5 py-1 rounded-full text-xs bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-sm transition-all",
+                  occasion === suggestion
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                )}
               >
                 {suggestion}
               </button>
@@ -239,87 +261,146 @@ export default function Create() {
           </div>
         </div>
 
-        {/* Wardrobe Items */}
-        <div className="space-y-3">
+        {/* Loading State */}
+        {loading && (
           <div className="px-4">
-            <h3 className="font-display text-sm font-medium text-muted-foreground">Select Items</h3>
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full bg-primary/20 animate-pulse" />
+                <Sparkles className="absolute inset-0 m-auto h-8 w-8 text-primary animate-spin" />
+              </div>
+              <p className="text-muted-foreground animate-pulse">
+                Creating your perfect outfits...
+              </p>
+            </div>
           </div>
-          
-          <ScrollArea className="w-full">
-            <div className="flex gap-2 px-4 pb-2">
-              {categories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors",
-                    activeCategory === cat
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  )}
-                >
-                  {cat === 'all' ? 'All' : CATEGORY_LABELS[cat]}
-                </button>
+        )}
+
+        {/* Outfit Suggestions */}
+        {outfitSuggestions.length > 0 && (
+          <div className="px-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-sm font-medium text-muted-foreground">
+                Your Outfit Options
+              </h3>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleGenerateOutfits}
+                disabled={loading}
+                className="gap-1"
+              >
+                <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
+                Regenerate
+              </Button>
+            </div>
+
+            <div className="space-y-6">
+              {outfitSuggestions.map((outfit, index) => (
+                <Card key={index} className="overflow-hidden">
+                  <CardContent className="p-4 space-y-4">
+                    {/* Outfit Header */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                          {index + 1}
+                        </span>
+                        <h4 className="font-display font-semibold text-foreground">
+                          {outfit.name}
+                        </h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground pl-8">
+                        {outfit.description}
+                      </p>
+                    </div>
+
+                    {/* Outfit Items */}
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {outfit.items?.map((item) => (
+                        <div key={item.id} className="flex-shrink-0">
+                          <div className="w-20 h-24 rounded-lg overflow-hidden bg-muted border-2 border-border">
+                            <img 
+                              src={item.image_url} 
+                              alt={item.name} 
+                              className="w-full h-full object-cover" 
+                            />
+                          </div>
+                          <p className="text-xs text-center mt-1 truncate w-20 text-muted-foreground">
+                            {item.name}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Try On Result */}
+                    {tryOnResults[index] && (
+                      <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-xl overflow-hidden bg-muted">
+                        <img 
+                          src={tryOnResults[index]} 
+                          alt={`${outfit.name} try-on`} 
+                          className="w-full h-full object-cover" 
+                        />
+                        <div className="absolute bottom-2 left-2 right-2">
+                          <div className="bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 text-center">
+                            <span className="text-xs font-medium text-primary">✨ Your Look</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Try On Button */}
+                    <Button
+                      onClick={() => handleTryOn(index)}
+                      disabled={tryOnLoading !== null || !personImage}
+                      variant={tryOnResults[index] ? "secondary" : "default"}
+                      className="w-full gap-2"
+                    >
+                      {tryOnLoading === index ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Creating your look...
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-4 w-4" />
+                          {tryOnResults[index] ? 'Try On Again' : 'Try On This Outfit'}
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
               ))}
             </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 px-4">
-            {filteredItems.map(item => {
-              const isSelected = selectedItems.some(i => i.id === item.id);
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => toggleItem(item)}
-                  className={cn(
-                    "aspect-square rounded-lg overflow-hidden border-2 transition-all relative",
-                    isSelected
-                      ? "border-primary ring-2 ring-primary/20"
-                      : "border-transparent hover:border-primary/30"
-                  )}
-                >
-                  <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-                  {isSelected && (
-                    <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                      <div className="bg-primary text-primary-foreground rounded-full p-1">
-                        <Plus className="h-4 w-4 rotate-45" />
-                      </div>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
           </div>
+        )}
 
-          {filteredItems.length === 0 && (
-            <div className="text-center py-8 px-4">
-              <p className="text-muted-foreground text-sm">No items in this category</p>
+        {/* Empty State */}
+        {!loading && outfitSuggestions.length === 0 && (
+          <div className="px-4 py-12">
+            <div className="text-center space-y-4">
+              <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center">
+                <Sparkles className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-muted-foreground">
+                  Enter an occasion above to get AI-curated outfit suggestions
+                </p>
+                <p className="text-xs text-muted-foreground/70">
+                  Based on your {wardrobeItems.length} wardrobe items
+                </p>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Try On Button */}
-        {selectedItems.length > 0 && (
-          <div className="fixed bottom-20 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent">
-            <Button
-              onClick={handleTryOn}
-              disabled={tryOnLoading || !personImage}
-              className="w-full max-w-md mx-auto h-14 text-lg gap-3"
-              size="lg"
-            >
-              {tryOnLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Creating your look...
-                </>
-              ) : (
-                <>
-                  <Eye className="h-5 w-5" />
-                  Try On Outfit ({selectedItems.length} items)
-                </>
-              )}
-            </Button>
+        {/* No Photo Warning */}
+        {!personImage && outfitSuggestions.length > 0 && (
+          <div className="px-4">
+            <div className="bg-muted/50 border border-border rounded-lg p-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                💡 Upload your photo in the <span className="font-medium">Try On</span> page to see yourself in these outfits
+              </p>
+            </div>
           </div>
         )}
       </div>
