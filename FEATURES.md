@@ -83,6 +83,40 @@ A personal AI-powered wardrobe management and styling application.
 
 ---
 
+## ✈️ Travel & Packing
+
+### Trip Planning
+- **Create Trips**: Plan trips with destination and date ranges
+- **Daily Outfit Planning**: Assign outfits to each day of your trip
+- **Auto Packing List**: Automatically generated from planned outfits
+- **Category Grouping**: Packing list organized by clothing category
+- **Calendar Integration**: Trips appear on History calendar
+
+---
+
+## 📊 Wardrobe Insights
+
+### Stats Dashboard
+- **Total Items**: Count of all wardrobe pieces
+- **Total Wears**: How many times you've worn outfits
+- **Wardrobe Value**: Sum of all item prices
+- **Never Worn**: Items that haven't been used yet
+
+### Cost-Per-Wear
+- **Track Item Prices**: Add purchase price when adding items
+- **Calculate CPW**: Automatic cost-per-wear calculation
+- **Best Value Items**: Ranked list of lowest cost-per-wear items
+- **Average CPW**: Overall wardrobe cost efficiency
+
+### Wardrobe Analysis
+- **Most Worn Items**: Top 5 most frequently used pieces
+- **Least Worn Items**: Identify underutilized items
+- **Color Palette**: Visual breakdown of wardrobe colors
+- **Brand Distribution**: See which brands dominate your closet
+- **Category Breakdown**: Balance across tops, bottoms, etc.
+
+---
+
 ## 👤 User Profile
 
 ### Account Management

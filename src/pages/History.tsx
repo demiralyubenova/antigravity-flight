@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { supabase } from '@/integrations/supabase/client';
 import { ClothingItem, CATEGORY_LABELS } from '@/types/wardrobe';
-import { Plus, X, Shirt, CalendarDays, Plane } from 'lucide-react';
+import { Plus, X, Shirt, CalendarDays, Plane, BarChart3 } from 'lucide-react';
 import { format, isSameDay, isWithinInterval } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -229,6 +229,26 @@ export default function History() {
   return (
     <AppLayout title="Outfit History" subtitle="Track what you wore & plan ahead">
       <div className="space-y-6 pb-24">
+        {/* Quick Actions */}
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="flex-1 gap-2 rounded-xl"
+            onClick={() => window.location.href = '/travel'}
+          >
+            <Plane className="h-4 w-4" />
+            Plan Trip
+          </Button>
+          <Button 
+            variant="outline" 
+            className="flex-1 gap-2 rounded-xl"
+            onClick={() => window.location.href = '/insights'}
+          >
+            <BarChart3 className="h-4 w-4" />
+            View Insights
+          </Button>
+        </div>
+
         {/* Calendar Card */}
         <div className="bg-card rounded-2xl shadow-elegant p-5">
           <div className="flex items-center justify-between mb-4">
