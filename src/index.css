@@ -2,95 +2,105 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* The Atelier - Elegant AI Wardrobe Design System */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Warm cream background with sophisticated contrast */
+    --background: 40 33% 97%;
+    --foreground: 240 10% 10%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 40 30% 99%;
+    --card-foreground: 240 10% 10%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 40 30% 99%;
+    --popover-foreground: 240 10% 10%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Rich burgundy primary for elegance */
+    --primary: 350 60% 30%;
+    --primary-foreground: 40 33% 97%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Soft taupe secondary */
+    --secondary: 30 20% 92%;
+    --secondary-foreground: 240 10% 10%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 30 15% 90%;
+    --muted-foreground: 240 5% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Gold accent for luxury feel */
+    --accent: 42 70% 50%;
+    --accent-foreground: 240 10% 10%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 40 33% 97%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 30 20% 88%;
+    --input: 30 20% 92%;
+    --ring: 350 60% 30%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Navigation */
+    --nav-background: 40 30% 99%;
+    --nav-foreground: 240 10% 10%;
+    --nav-active: 350 60% 30%;
+    --nav-muted: 240 5% 55%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 40 30% 99%;
+    --sidebar-foreground: 240 10% 10%;
+    --sidebar-primary: 350 60% 30%;
+    --sidebar-primary-foreground: 40 33% 97%;
+    --sidebar-accent: 30 20% 92%;
+    --sidebar-accent-foreground: 240 10% 10%;
+    --sidebar-border: 30 20% 88%;
+    --sidebar-ring: 350 60% 30%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Deep charcoal background */
+    --background: 240 10% 6%;
+    --foreground: 40 20% 95%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 240 10% 9%;
+    --card-foreground: 40 20% 95%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 240 10% 9%;
+    --popover-foreground: 40 20% 95%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Soft rose primary for dark mode */
+    --primary: 350 50% 65%;
+    --primary-foreground: 240 10% 6%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 240 8% 15%;
+    --secondary-foreground: 40 20% 95%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 240 8% 18%;
+    --muted-foreground: 40 10% 55%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    /* Warm gold accent */
+    --accent: 42 65% 55%;
+    --accent-foreground: 240 10% 6%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 40 20% 95%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 240 8% 18%;
+    --input: 240 8% 18%;
+    --ring: 350 50% 65%;
+
+    --nav-background: 240 10% 9%;
+    --nav-foreground: 40 20% 95%;
+    --nav-active: 350 50% 65%;
+    --nav-muted: 40 10% 50%;
+
+    --sidebar-background: 240 10% 9%;
+    --sidebar-foreground: 40 20% 95%;
+    --sidebar-primary: 350 50% 65%;
+    --sidebar-primary-foreground: 240 10% 6%;
+    --sidebar-accent: 240 8% 15%;
+    --sidebar-accent-foreground: 40 20% 95%;
+    --sidebar-border: 240 8% 18%;
+    --sidebar-ring: 350 50% 65%;
   }
 }
 
@@ -100,6 +110,36 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Typography refinements */
+@layer utilities {
+  .font-display {
+    font-family: 'Times New Roman', 'Georgia', serif;
+    letter-spacing: 0.02em;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Elegant shadows */
+  .shadow-elegant {
+    box-shadow: 0 4px 20px -4px hsl(var(--foreground) / 0.08),
+                0 2px 8px -2px hsl(var(--foreground) / 0.04);
+  }
+
+  .shadow-elegant-lg {
+    box-shadow: 0 8px 30px -6px hsl(var(--foreground) / 0.12),
+                0 4px 12px -4px hsl(var(--foreground) / 0.06);
+  }
+
+  /* Glass effect */
+  .glass {
+    backdrop-filter: blur(12px);
+    background-color: hsl(var(--background) / 0.8);
   }
 }
