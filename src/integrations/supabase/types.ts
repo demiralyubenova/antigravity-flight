@@ -244,6 +244,62 @@ export type Database = {
           },
         ]
       }
+      wishlist_items: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_purchased: boolean | null
+          name: string
+          priority: string | null
+          related_outfit_id: string | null
+          source: string | null
+          target_price: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_purchased?: boolean | null
+          name: string
+          priority?: string | null
+          related_outfit_id?: string | null
+          source?: string | null
+          target_price?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_purchased?: boolean | null
+          name?: string
+          priority?: string | null
+          related_outfit_id?: string | null
+          source?: string | null
+          target_price?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wishlist_items_related_outfit_id_fkey"
+            columns: ["related_outfit_id"]
+            isOneToOne: false
+            referencedRelation: "outfits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

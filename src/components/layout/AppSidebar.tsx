@@ -1,4 +1,4 @@
-import { Shirt, Palette, History, BarChart3, Sparkles, MessageCircle, Plane, Menu } from 'lucide-react';
+import { Shirt, Palette, History, BarChart3, Sparkles, MessageCircle, Plane, Menu, ShoppingBag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -20,6 +20,7 @@ const navItems = [
   { path: '/history', label: 'History', icon: History },
   { path: '/travel', label: 'Travel', icon: Plane },
   { path: '/insights', label: 'Insights', icon: BarChart3 },
+  { path: '/wishlist', label: 'Wishlist', icon: ShoppingBag },
   { path: '/stylist', label: 'Stylist', icon: MessageCircle },
 ];
 

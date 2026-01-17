@@ -1,16 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useClothingItems } from '@/hooks/useClothingItems';
+import { useWishlist } from '@/hooks/useWishlist';
 import { supabase } from '@/integrations/supabase/client';
 import { ClothingItem, CATEGORY_LABELS, ClothingCategory } from '@/types/wardrobe';
 import { 
   TrendingUp, TrendingDown, DollarSign, Shirt, 
-  PieChart, Tag, AlertCircle, Star, Package
+  PieChart, Tag, AlertCircle, Star, Package, ShoppingBag, Plus
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 interface Outfit {
   id: string;
@@ -28,7 +32,10 @@ interface ItemStats {
 
 export default function Insights() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const { items: clothingItems } = useClothingItems('all');
+  const { addItem: addToWishlist, pendingItems: wishlistItems } = useWishlist();
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -180,6 +187,55 @@ export default function Insights() {
     const sum = itemsWithCPW.reduce((acc, s) => acc + (s.costPerWear || 0), 0);
     return sum / itemsWithCPW.length;
   }, [itemStats]);
+
+  // Detect wardrobe gaps based on category balance
+  const wardrobeGaps = useMemo(() => {
+    const gaps: { category: string; reason: string }[] = [];
+    const categoryCount = categoryBreakdown.reduce((acc, [cat, count]) => {
+      acc[cat] = count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Check for missing essential categories
+    const essentials = ['Tops', 'Bottoms', 'Shoes', 'Outerwear'];
+    essentials.forEach(cat => {
+      if (!categoryCount[cat] || categoryCount[cat] < 2) {
+        gaps.push({ 
+          category: cat, 
+          reason: categoryCount[cat] ? 'Only 1 item' : 'No items' 
+        });
+      }
+    });
+
+    // Check for color variety issues
+    if (colorBreakdown.length < 4 && clothingItems.length > 10) {
+      gaps.push({ category: 'Colorful pieces', reason: 'Limited color variety' });
+    }
+
+    return gaps;
+  }, [categoryBreakdown, colorBreakdown, clothingItems]);
+
+  const addGapToWishlist = async (gap: { category: string; reason: string }) => {
+    const existingInWishlist = wishlistItems.some(
+      item => item.category === gap.category && item.source === 'gap_detection'
+    );
+
+    if (existingInWishlist) {
+      toast({ title: 'Already in wishlist', description: `${gap.category} is already on your list` });
+      return;
+    }
+
+    await addToWishlist.mutateAsync({
+      name: `New ${gap.category.toLowerCase()}`,
+      category: gap.category === 'Colorful pieces' ? 'Tops' : gap.category,
+      description: `Suggested to fill wardrobe gap: ${gap.reason}`,
+      target_price: null,
+      priority: 'medium',
+      source: 'gap_detection',
+      image_url: null,
+      related_outfit_id: null,
+    });
+  };
 
   const getColorStyle = (color: string) => {
     const colorMap: Record<string, string> = {
@@ -375,6 +431,53 @@ export default function Insights() {
                     </span>
                   </div>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Wardrobe Gaps - Shopping Suggestions */}
+        {wardrobeGaps.length > 0 && (
+          <Card className="border-0 shadow-elegant bg-primary/5">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4 text-primary" />
+                  <h3 className="font-display font-semibold">Wardrobe Gaps</h3>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => navigate('/wishlist')}
+                  className="text-xs"
+                >
+                  View Wishlist
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Items that could complete your wardrobe
+              </p>
+              <div className="space-y-2">
+                {wardrobeGaps.map((gap, index) => (
+                  <div 
+                    key={index}
+                    className="flex items-center justify-between p-3 rounded-xl bg-background border border-border"
+                  >
+                    <div>
+                      <p className="font-medium text-sm">{gap.category}</p>
+                      <p className="text-xs text-muted-foreground">{gap.reason}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => addGapToWishlist(gap)}
+                      className="gap-1"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add
+                    </Button>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
