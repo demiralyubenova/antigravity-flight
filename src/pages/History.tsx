@@ -133,44 +133,41 @@ export default function History() {
     clothingItems.find(item => item.id === itemId);
 
   return (
-    <AppLayout title="The Chronology" subtitle="Your outfit history">
-      <div className="grid lg:grid-cols-2 gap-6 pb-24">
-        {/* Calendar */}
-        <div className="space-y-4">
-          <h3 className="font-display text-lg font-medium">Calendar</h3>
-          <div className="bg-card rounded-2xl border p-4">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              className="pointer-events-auto"
-              modifiers={{
-                hasOutfit: datesWithOutfits,
-              }}
-              modifiersStyles={{
-                hasOutfit: {
-                  backgroundColor: 'hsl(var(--primary) / 0.2)',
-                  borderRadius: '50%',
-                },
-              }}
-            />
-          </div>
+    <AppLayout title="Outfit History" subtitle="Track what you wore">
+      <div className="space-y-6 pb-24">
+        {/* Calendar Card */}
+        <div className="bg-card rounded-2xl shadow-elegant p-5">
+          <h3 className="font-display text-lg font-semibold mb-4">Calendar</h3>
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={setSelectedDate}
+            modifiers={{
+              hasOutfit: datesWithOutfits,
+            }}
+            modifiersStyles={{
+              hasOutfit: {
+                backgroundColor: 'hsl(var(--primary) / 0.15)',
+                borderRadius: '12px',
+              },
+            }}
+          />
         </div>
 
-        {/* Selected Date Outfits */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-display text-lg font-medium">
+        {/* Selected Date Outfits Card */}
+        <div className="bg-card rounded-2xl shadow-elegant p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-display text-lg font-semibold">
               {selectedDate ? format(selectedDate, 'MMMM d, yyyy') : 'Select a date'}
             </h3>
-            <Button size="sm" onClick={() => setShowAddDialog(true)} className="gap-2">
+            <Button size="sm" onClick={() => setShowAddDialog(true)} className="gap-2 rounded-xl">
               <Plus className="h-4 w-4" />
               Log Outfit
             </Button>
           </div>
 
           {outfitsForSelectedDate.length === 0 ? (
-            <div className="bg-muted/30 rounded-2xl border border-dashed p-8 text-center">
+            <div className="bg-muted/30 rounded-xl border border-dashed p-8 text-center">
               <Shirt className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
               <p className="text-muted-foreground text-sm">No outfits logged for this day</p>
               <Button 
@@ -184,7 +181,7 @@ export default function History() {
           ) : (
             <div className="space-y-3">
               {outfitsForSelectedDate.map(outfit => (
-                <div key={outfit.id} className="bg-card rounded-xl border p-4">
+                <div key={outfit.id} className="bg-secondary/30 rounded-xl p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h4 className="font-medium">{outfit.name}</h4>
@@ -195,7 +192,7 @@ export default function History() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive rounded-full"
                       onClick={() => deleteOutfit(outfit.id)}
                     >
                       <X className="h-4 w-4" />
@@ -206,7 +203,7 @@ export default function History() {
                       const item = getClothingItem(itemId);
                       if (!item) return null;
                       return (
-                        <div key={itemId} className="w-14 h-14 rounded-lg overflow-hidden bg-muted">
+                        <div key={itemId} className="w-14 h-14 rounded-xl overflow-hidden bg-muted shadow-sm">
                           <img 
                             src={item.image_url} 
                             alt={item.name}
