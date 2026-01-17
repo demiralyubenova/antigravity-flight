@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Sparkles, Eye, RefreshCw } from 'lucide-react';
+import { Loader2, Sparkles, Eye, RefreshCw, AlertTriangle, ShoppingBag } from 'lucide-react';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +29,7 @@ export default function Create() {
   const [tryOnResults, setTryOnResults] = useState<Record<number, string>>({});
   const [personImage, setPersonImage] = useState<string | null>(null);
   const [recentOutfits, setRecentOutfits] = useState<any[]>([]);
+  const [insufficientWardrobe, setInsufficientWardrobe] = useState<{ insufficient: boolean; missingItems: string[] } | null>(null);
 
   // Load user's avatar for try-on
   useEffect(() => {
@@ -105,6 +106,7 @@ export default function Create() {
     setLoading(true);
     setOutfitSuggestions([]);
     setTryOnResults({});
+    setInsufficientWardrobe(null);
 
     try {
       const { data, error } = await supabase.functions.invoke('generate-outfits', {
@@ -128,6 +130,20 @@ export default function Create() {
 
       if (data.error) {
         throw new Error(data.error);
+      }
+
+      // Check if wardrobe is insufficient for the occasion
+      if (data.insufficient) {
+        setInsufficientWardrobe({
+          insufficient: true,
+          missingItems: data.missingItems || [],
+        });
+        toast({ 
+          title: 'Wardrobe gaps detected', 
+          description: 'You might need some items for this occasion',
+          variant: 'destructive'
+        });
+        return;
       }
 
       if (data.outfits && Array.isArray(data.outfits)) {
@@ -276,6 +292,64 @@ export default function Create() {
           </div>
         )}
 
+        {/* Insufficient Wardrobe Warning */}
+        {insufficientWardrobe?.insufficient && (
+          <div className="px-4">
+            <Card className="border-destructive/50 bg-destructive/5">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-display font-semibold text-foreground">
+                      Your wardrobe needs more items
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      You don't have enough suitable items for <span className="font-medium text-foreground">{occasion}</span>. Here's what you're missing:
+                    </p>
+                  </div>
+                </div>
+                
+                {insufficientWardrobe.missingItems.length > 0 && (
+                  <div className="space-y-2 pl-13">
+                    <p className="text-sm font-medium text-foreground">Suggested items to add:</p>
+                    <ul className="space-y-1">
+                      {insufficientWardrobe.missingItems.map((item, i) => (
+                        <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <ShoppingBag className="h-3 w-3 text-primary" />
+                          <span className="capitalize">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => window.location.href = '/wardrobe'}
+                    className="gap-2"
+                  >
+                    <ShoppingBag className="h-4 w-4" />
+                    Go to Wardrobe
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    size="sm"
+                    onClick={() => {
+                      setInsufficientWardrobe(null);
+                      setOccasion('');
+                    }}
+                  >
+                    Try Different Occasion
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
         {/* Outfit Suggestions */}
         {outfitSuggestions.length > 0 && (
           <div className="px-4 space-y-4">

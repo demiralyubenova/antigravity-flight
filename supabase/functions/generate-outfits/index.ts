@@ -37,7 +37,7 @@ serve(async (req) => {
       }).join('\n')}`;
     }
 
-    const systemPrompt = `You are a professional fashion stylist AI. Generate exactly 3 outfit options from the user's wardrobe for the given occasion.
+    const systemPrompt = `You are a professional fashion stylist AI. Analyze the user's wardrobe and generate outfit options for the given occasion.
 
 DRESS CODE RULES BY OCCASION:
 - Business Meeting / Job Interview / Work: Blazers, dress shirts, blouses, slacks, pencil skirts, dress shoes. NO hoodies, sneakers, jeans, casual t-shirts.
@@ -53,13 +53,15 @@ IMPORTANT RULES:
 3. Each outfit should be complete (top + bottom OR dress, plus shoes if available)
 4. Each outfit should be DIFFERENT from the others
 5. Avoid recently worn combinations
-6. If the wardrobe lacks appropriate items for the occasion, use the closest suitable alternatives and note it in the description${recentOutfitsContext}
+6. CRITICAL: If the wardrobe does NOT have appropriate items for the occasion, set "insufficient" to true and explain what's missing in "missingItems"${recentOutfitsContext}
 
 Available wardrobe items (use EXACT IDs):
 ${wardrobeItems.map((item: any) => `ID: "${item.id}" - ${item.name} (${item.category}${item.color ? `, ${item.color}` : ''})`).join('\n')}
 
 Return ONLY a valid JSON object with this exact structure:
 {
+  "insufficient": false,
+  "missingItems": [],
   "outfits": [
     {
       "name": "Outfit name",
@@ -67,6 +69,13 @@ Return ONLY a valid JSON object with this exact structure:
       "itemIds": ["id1", "id2", "id3"]
     }
   ]
+}
+
+If wardrobe lacks appropriate items, return:
+{
+  "insufficient": true,
+  "missingItems": ["blazer or suit jacket", "dress shoes", "dress pants"],
+  "outfits": []
 }`;
 
     console.log('Generating outfit suggestions for:', occasion);
