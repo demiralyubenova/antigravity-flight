@@ -57,7 +57,7 @@ export function AppLayout({ children, title, subtitle, showNav = true }: AppLayo
   }
 
   return (
-    <SidebarProvider defaultOpen={false}>
+    <SidebarProvider defaultOpen={true}>
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
         
