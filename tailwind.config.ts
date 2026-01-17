@@ -14,7 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ['"Playfair Display"', 'Georgia', 'serif'],
+        display: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
         sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
         body: ['Inter', 'system-ui', 'sans-serif'],
       },
