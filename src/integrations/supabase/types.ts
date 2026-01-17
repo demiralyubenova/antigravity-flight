@@ -56,7 +56,9 @@ export type Database = {
       outfits: {
         Row: {
           created_at: string
+          event_name: string | null
           id: string
+          is_planned: boolean | null
           item_ids: string[]
           name: string
           notes: string | null
@@ -67,7 +69,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          event_name?: string | null
           id?: string
+          is_planned?: boolean | null
           item_ids: string[]
           name: string
           notes?: string | null
@@ -78,7 +82,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          event_name?: string | null
           id?: string
+          is_planned?: boolean | null
           item_ids?: string[]
           name?: string
           notes?: string | null
@@ -111,6 +117,84 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      trip_outfits: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          outfit_id: string | null
+          planned_date: string
+          trip_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          outfit_id?: string | null
+          planned_date: string
+          trip_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          outfit_id?: string | null
+          planned_date?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_outfits_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "outfits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_outfits_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trips: {
+        Row: {
+          created_at: string
+          destination: string | null
+          end_date: string
+          id: string
+          name: string
+          notes: string | null
+          start_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          destination?: string | null
+          end_date: string
+          id?: string
+          name: string
+          notes?: string | null
+          start_date: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          destination?: string | null
+          end_date?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          start_date?: string
           updated_at?: string
           user_id?: string
         }

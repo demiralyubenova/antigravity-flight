@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Sparkles, Eye, RefreshCw, AlertTriangle, ShoppingBag, Check } from 'lucide-react';
+import { Loader2, Sparkles, Eye, RefreshCw, AlertTriangle, ShoppingBag, Check, CalendarDays } from 'lucide-react';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -508,6 +508,14 @@ export default function Create() {
                             Wear Today
                           </>
                         )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="gap-1 rounded-xl h-11"
+                        onClick={() => window.location.href = '/history'}
+                      >
+                        <CalendarDays className="h-4 w-4" />
+                        Plan
                       </Button>
                     </div>
                   </CardContent>
