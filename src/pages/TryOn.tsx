@@ -25,12 +25,21 @@ export default function TryOn() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setPersonImage(event.target?.result as string);
-      setTryOnResult(null);
+    // Use createImageBitmap + canvas to normalize EXIF orientation
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        const normalizedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        setPersonImage(normalizedDataUrl);
+        setTryOnResult(null);
+      }
     };
-    reader.readAsDataURL(file);
+    img.src = URL.createObjectURL(file);
   };
 
   const handleTryOn = async () => {
