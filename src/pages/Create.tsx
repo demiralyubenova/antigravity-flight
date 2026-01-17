@@ -225,135 +225,139 @@ export default function Create() {
   return (
     <AppLayout title="Outfit Creator" subtitle="AI-powered outfit suggestions">
       <div className="pb-24 space-y-6">
-        {/* Occasion Input */}
-        <div className="px-4 space-y-4">
-          <div className="text-center space-y-2">
-            <h2 className="text-lg font-display font-semibold text-foreground">
-              What's the occasion?
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Tell me where you're going and I'll create 3 outfit options from your wardrobe
-            </p>
-          </div>
+        {/* Occasion Input Card */}
+        <Card className="border-0 shadow-elegant">
+          <CardContent className="p-5 space-y-4">
+            <div className="text-center space-y-2">
+              <h2 className="font-display text-lg font-medium tracking-tight">
+                What's the occasion?
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Tell me where you're going and I'll create 3 outfit options
+              </p>
+            </div>
 
-          <div className="flex gap-2">
-            <Input
-              value={occasion}
-              onChange={(e) => setOccasion(e.target.value)}
-              placeholder="e.g., Business meeting, date night..."
-              className="flex-1 h-12"
-              onKeyDown={(e) => e.key === 'Enter' && handleGenerateOutfits()}
-            />
-            <Button 
-              onClick={handleGenerateOutfits} 
-              disabled={!occasion || loading} 
-              className="h-12 px-6 gap-2"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              {loading ? 'Creating...' : 'Create'}
-            </Button>
-          </div>
-
-          {/* Quick Occasion Suggestions */}
-          <div className="flex flex-wrap gap-2 justify-center">
-            {occasionSuggestions.map((suggestion) => (
-              <button
-                key={suggestion}
-                onClick={() => setOccasion(suggestion)}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-sm transition-all",
-                  occasion === suggestion
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                )}
+            <div className="flex gap-2">
+              <Input
+                value={occasion}
+                onChange={(e) => setOccasion(e.target.value)}
+                placeholder="e.g., Business meeting, date night..."
+                className="flex-1 h-12 rounded-xl"
+                onKeyDown={(e) => e.key === 'Enter' && handleGenerateOutfits()}
+              />
+              <Button 
+                onClick={handleGenerateOutfits} 
+                disabled={!occasion || loading} 
+                className="h-12 px-6 gap-2 rounded-xl"
               >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        </div>
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {loading ? 'Creating...' : 'Create'}
+              </Button>
+            </div>
+
+            {/* Quick Occasion Suggestions */}
+            <div className="flex flex-wrap gap-2 justify-center pt-2">
+              {occasionSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  onClick={() => setOccasion(suggestion)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-sm transition-all",
+                    occasion === suggestion
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  )}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Loading State */}
         {loading && (
-          <div className="px-4">
-            <div className="flex flex-col items-center justify-center py-12 space-y-4">
-              <div className="relative">
-                <div className="w-16 h-16 rounded-full bg-primary/20 animate-pulse" />
-                <Sparkles className="absolute inset-0 m-auto h-8 w-8 text-primary animate-spin" />
+          <Card className="border-0 shadow-elegant">
+            <CardContent className="p-8">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full bg-primary/20 animate-pulse" />
+                  <Sparkles className="absolute inset-0 m-auto h-8 w-8 text-primary animate-spin" />
+                </div>
+                <p className="text-muted-foreground animate-pulse">
+                  Creating your perfect outfits...
+                </p>
               </div>
-              <p className="text-muted-foreground animate-pulse">
-                Creating your perfect outfits...
-              </p>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Insufficient Wardrobe Warning */}
         {insufficientWardrobe?.insufficient && (
-          <div className="px-4">
-            <Card className="border-destructive/50 bg-destructive/5">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                    <AlertTriangle className="h-5 w-5 text-destructive" />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className="font-display font-semibold text-foreground">
-                      Your wardrobe needs more items
-                    </h4>
-                    <p className="text-sm text-muted-foreground">
-                      You don't have enough suitable items for <span className="font-medium text-foreground">{occasion}</span>. Here's what you're missing:
-                    </p>
-                  </div>
+          <Card className="border-0 shadow-elegant bg-destructive/5">
+            <CardContent className="p-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
                 </div>
-                
-                {insufficientWardrobe.missingItems.length > 0 && (
-                  <div className="space-y-2 pl-13">
-                    <p className="text-sm font-medium text-foreground">Suggested items to add:</p>
-                    <ul className="space-y-1">
-                      {insufficientWardrobe.missingItems.map((item, i) => (
-                        <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <ShoppingBag className="h-3 w-3 text-primary" />
-                          <span className="capitalize">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <div className="space-y-1">
+                  <h4 className="font-display font-medium">
+                    Your wardrobe needs more items
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    You don't have enough suitable items for <span className="font-medium text-foreground">{occasion}</span>
+                  </p>
+                </div>
+              </div>
+              
+              {insufficientWardrobe.missingItems.length > 0 && (
+                <div className="space-y-2 pl-13">
+                  <p className="text-sm font-medium">Suggested items to add:</p>
+                  <ul className="space-y-1.5">
+                    {insufficientWardrobe.missingItems.map((item, i) => (
+                      <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <ShoppingBag className="h-3.5 w-3.5 text-primary" />
+                        <span className="capitalize">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-                <div className="flex gap-2 pt-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => window.location.href = '/wardrobe'}
-                    className="gap-2"
-                  >
-                    <ShoppingBag className="h-4 w-4" />
-                    Go to Wardrobe
-                  </Button>
-                  <Button 
-                    variant="secondary" 
-                    size="sm"
-                    onClick={() => {
-                      setInsufficientWardrobe(null);
-                      setOccasion('');
-                    }}
-                  >
-                    Try Different Occasion
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              <div className="flex gap-2 pt-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.location.href = '/wardrobe'}
+                  className="gap-2 rounded-xl"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  Go to Wardrobe
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  className="rounded-xl"
+                  onClick={() => {
+                    setInsufficientWardrobe(null);
+                    setOccasion('');
+                  }}
+                >
+                  Try Different Occasion
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
+
         {/* Outfit Suggestions */}
         {outfitSuggestions.length > 0 && (
-          <div className="px-4 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
               <h3 className="font-display text-sm font-medium text-muted-foreground">
                 Your Outfit Options
               </h3>
@@ -369,17 +373,17 @@ export default function Create() {
               </Button>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               {outfitSuggestions.map((outfit, index) => (
-                <Card key={index} className="overflow-hidden">
-                  <CardContent className="p-4 space-y-4">
+                <Card key={index} className="border-0 shadow-elegant overflow-hidden">
+                  <CardContent className="p-5 space-y-4">
                     {/* Outfit Header */}
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
                           {index + 1}
                         </span>
-                        <h4 className="font-display font-semibold text-foreground">
+                        <h4 className="font-display font-medium tracking-tight">
                           {outfit.name}
                         </h4>
                       </div>
@@ -389,17 +393,17 @@ export default function Create() {
                     </div>
 
                     {/* Outfit Items */}
-                    <div className="flex gap-2 overflow-x-auto pb-2">
+                    <div className="flex gap-3 overflow-x-auto pb-2">
                       {outfit.items?.map((item) => (
                         <div key={item.id} className="flex-shrink-0">
-                          <div className="w-20 h-24 rounded-lg overflow-hidden bg-muted border-2 border-border">
+                          <div className="w-20 h-24 rounded-xl overflow-hidden bg-muted border-2 border-border shadow-sm">
                             <img 
                               src={item.image_url} 
                               alt={item.name} 
                               className="w-full h-full object-cover" 
                             />
                           </div>
-                          <p className="text-xs text-center mt-1 truncate w-20 text-muted-foreground">
+                          <p className="text-xs text-center mt-1.5 truncate w-20 text-muted-foreground">
                             {item.name}
                           </p>
                         </div>
@@ -408,15 +412,15 @@ export default function Create() {
 
                     {/* Try On Result */}
                     {tryOnResults[index] && (
-                      <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-xl overflow-hidden bg-muted">
+                      <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-2xl overflow-hidden bg-muted border border-border">
                         <img 
                           src={tryOnResults[index]} 
                           alt={`${outfit.name} try-on`} 
                           className="w-full h-full object-cover" 
                         />
-                        <div className="absolute bottom-2 left-2 right-2">
-                          <div className="bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 text-center">
-                            <span className="text-xs font-medium text-primary">✨ Your Look</span>
+                        <div className="absolute bottom-3 left-3 right-3">
+                          <div className="bg-background/90 backdrop-blur-sm rounded-xl px-3 py-2 text-center">
+                            <span className="text-sm font-medium text-primary">✨ Your Look</span>
                           </div>
                         </div>
                       </div>
@@ -427,7 +431,7 @@ export default function Create() {
                       onClick={() => handleTryOn(index)}
                       disabled={tryOnLoading !== null || !personImage}
                       variant={tryOnResults[index] ? "secondary" : "default"}
-                      className="w-full gap-2"
+                      className="w-full gap-2 rounded-xl h-11"
                     >
                       {tryOnLoading === index ? (
                         <>
@@ -449,33 +453,35 @@ export default function Create() {
         )}
 
         {/* Empty State */}
-        {!loading && outfitSuggestions.length === 0 && (
-          <div className="px-4 py-12">
-            <div className="text-center space-y-4">
-              <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center">
-                <Sparkles className="h-10 w-10 text-muted-foreground" />
+        {!loading && outfitSuggestions.length === 0 && !insufficientWardrobe && (
+          <Card className="border-0 shadow-elegant">
+            <CardContent className="p-8">
+              <div className="text-center space-y-4">
+                <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center">
+                  <Sparkles className="h-10 w-10 text-muted-foreground" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-muted-foreground">
+                    Enter an occasion above to get AI-curated outfit suggestions
+                  </p>
+                  <p className="text-xs text-muted-foreground/70">
+                    Based on your {wardrobeItems.length} wardrobe items
+                  </p>
+                </div>
               </div>
-              <div className="space-y-2">
-                <p className="text-muted-foreground">
-                  Enter an occasion above to get AI-curated outfit suggestions
-                </p>
-                <p className="text-xs text-muted-foreground/70">
-                  Based on your {wardrobeItems.length} wardrobe items
-                </p>
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* No Photo Warning */}
         {!personImage && outfitSuggestions.length > 0 && (
-          <div className="px-4">
-            <div className="bg-muted/50 border border-border rounded-lg p-4 text-center">
+          <Card className="border-0 shadow-elegant bg-muted/30">
+            <CardContent className="p-4 text-center">
               <p className="text-sm text-muted-foreground">
                 💡 Upload your photo in the <span className="font-medium">Try On</span> page to see yourself in these outfits
               </p>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </AppLayout>
