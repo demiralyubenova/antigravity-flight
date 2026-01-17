@@ -68,6 +68,31 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
     }
   };
 
+  const analyzeClothing = async (base64Image: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-clothing', {
+        body: { imageUrl: base64Image },
+      });
+
+      if (error) throw error;
+
+      if (data && !data.error) {
+        // Auto-fill the form fields
+        if (data.name) setName(data.name);
+        if (data.category && ALL_CATEGORIES.includes(data.category)) {
+          setCategory(data.category as ClothingCategory);
+        }
+        if (data.color) setColor(data.color);
+        if (data.brand) setBrand(data.brand);
+        
+        toast({ title: 'Item analyzed!', description: 'Details auto-filled from image' });
+      }
+    } catch (error) {
+      console.error('Error analyzing clothing:', error);
+      // Don't show error toast - this is optional enhancement
+    }
+  };
+
   const normalizeImageOrientation = (file: File): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -100,15 +125,18 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
     const normalizedBase64 = await normalizeImageOrientation(file);
     setImagePreview(normalizedBase64); // Show normalized image immediately
     
-    // Then remove background automatically
-    toast({ title: 'Removing background...', description: 'AI is processing your image' });
+    // Run background removal and AI analysis in parallel
+    toast({ title: 'Processing image...', description: 'Removing background & analyzing item' });
     
-    const result = await removeBackground(normalizedBase64);
+    const [bgResult] = await Promise.all([
+      removeBackground(normalizedBase64),
+      analyzeClothing(normalizedBase64), // Auto-fill form fields
+    ]);
     
-    if (result) {
-      setImagePreview(result.processedUrl);
-      setImageFile(result.file);
-      toast({ title: 'Background removed!', description: 'Your item is ready' });
+    if (bgResult) {
+      setImagePreview(bgResult.processedUrl);
+      setImageFile(bgResult.file);
+      toast({ title: 'Image processed!', description: 'Background removed & details detected' });
     } else {
       // If background removal fails, keep normalized image
       const response = await fetch(normalizedBase64);

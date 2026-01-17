@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.virtual-tryon]
 verify_jwt = false
+
+[functions.analyze-clothing]
+verify_jwt = false
