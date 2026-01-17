@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, type ChangeEvent } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Camera, Upload, Sparkles, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Camera, Upload, Sparkles, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,16 +17,20 @@ export default function TryOn() {
   const [processing, setProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setPersonImage(e.target?.result as string);
-        setTryOnResult(null);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPersonImage(event.target?.result as string);
+      setTryOnResult(null);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleTryOn = async () => {
@@ -109,16 +113,35 @@ export default function TryOn() {
               )}
             </div>
           ) : (
-            <label className="block aspect-[3/4] max-w-sm mx-auto rounded-2xl border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer bg-muted/30">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={openFilePicker}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openFilePicker();
+                }
+              }}
+              className="block aspect-[3/4] max-w-sm mx-auto rounded-2xl border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer bg-muted/30"
+            >
               <div className="h-full flex flex-col items-center justify-center p-6 text-center">
                 <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <Camera className="h-8 w-8 text-primary" />
                 </div>
                 <h4 className="font-medium mb-1">Upload Your Photo</h4>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Take or upload a full-body photo
-                </p>
-                <Button variant="outline" size="sm" className="gap-2">
+                <p className="text-sm text-muted-foreground mb-4">Take or upload a full-body photo</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openFilePicker();
+                  }}
+                >
                   <Upload className="h-4 w-4" />
                   Choose Photo
                 </Button>
@@ -130,7 +153,7 @@ export default function TryOn() {
                 className="hidden"
                 onChange={handleFileChange}
               />
-            </label>
+            </div>
           )}
         </div>
 
