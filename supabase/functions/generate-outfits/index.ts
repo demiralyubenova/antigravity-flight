@@ -37,13 +37,23 @@ serve(async (req) => {
       }).join('\n')}`;
     }
 
-    const systemPrompt = `You are a fashion stylist AI. Generate exactly 3 outfit options from the user's wardrobe for the given occasion.
+    const systemPrompt = `You are a professional fashion stylist AI. Generate exactly 3 outfit options from the user's wardrobe for the given occasion.
+
+DRESS CODE RULES BY OCCASION:
+- Business Meeting / Job Interview / Work: Blazers, dress shirts, blouses, slacks, pencil skirts, dress shoes. NO hoodies, sneakers, jeans, casual t-shirts.
+- Date Night / Night Out: Elegant dresses, nice blouses, stylish tops, dress pants, heels. Can be more glamorous.
+- Casual Weekend / Beach Day: Relaxed clothes - jeans, t-shirts, sneakers, sandals, casual dresses.
+- Gym Session / Workout: Athletic wear - leggings, sports bras, tank tops, sneakers. NO regular clothes.
+- Wedding Guest: Formal attire - elegant dresses, suits, dress shoes. NO casual items.
+- Formal Event / Gala: Most elegant items - evening gowns, suits, formal accessories.
 
 IMPORTANT RULES:
-1. Only use items from the provided wardrobe list
-2. Each outfit should be complete and appropriate for the occasion
-3. Each outfit should be DIFFERENT from the others
-4. Avoid recently worn combinations${recentOutfitsContext}
+1. ONLY use items from the provided wardrobe list - use exact IDs
+2. Each outfit MUST be appropriate for the occasion's dress code
+3. Each outfit should be complete (top + bottom OR dress, plus shoes if available)
+4. Each outfit should be DIFFERENT from the others
+5. Avoid recently worn combinations
+6. If the wardrobe lacks appropriate items for the occasion, use the closest suitable alternatives and note it in the description${recentOutfitsContext}
 
 Available wardrobe items (use EXACT IDs):
 ${wardrobeItems.map((item: any) => `ID: "${item.id}" - ${item.name} (${item.category}${item.color ? `, ${item.color}` : ''})`).join('\n')}
@@ -53,7 +63,7 @@ Return ONLY a valid JSON object with this exact structure:
   "outfits": [
     {
       "name": "Outfit name",
-      "description": "Brief style description",
+      "description": "Brief style description explaining why it works for the occasion",
       "itemIds": ["id1", "id2", "id3"]
     }
   ]
