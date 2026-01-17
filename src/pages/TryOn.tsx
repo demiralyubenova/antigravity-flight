@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Camera, Upload, Sparkles, X, Loader2, Save } from 'lucide-react';
+import { Camera, Upload, Sparkles, X, Loader2, Save, History, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,6 +8,14 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { ClothingItem, CATEGORY_LABELS } from '@/types/wardrobe';
 import { cn } from '@/lib/utils';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+
+interface TryOnResult {
+  id: string;
+  result_image_url: string;
+  clothing_item_id: string | null;
+  created_at: string;
+}
 
 export default function TryOn() {
   const { toast } = useToast();
@@ -19,26 +27,41 @@ export default function TryOn() {
   const [tryOnResult, setTryOnResult] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
+  const [savedResults, setSavedResults] = useState<TryOnResult[]>([]);
+  const [selectedSavedResult, setSelectedSavedResult] = useState<TryOnResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load saved avatar on mount
+  // Load saved avatar and try-on history on mount
   useEffect(() => {
     if (!user) return;
     
-    const loadAvatar = async () => {
-      const { data } = await supabase
+    const loadData = async () => {
+      // Load avatar
+      const { data: profile } = await supabase
         .from('profiles')
         .select('avatar_url')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
       
-      if (data?.avatar_url) {
-        setSavedAvatarUrl(data.avatar_url);
-        setPersonImage(data.avatar_url);
+      if (profile?.avatar_url) {
+        setSavedAvatarUrl(profile.avatar_url);
+        setPersonImage(profile.avatar_url);
+      }
+
+      // Load saved try-on results
+      const { data: results } = await supabase
+        .from('try_on_results')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (results) {
+        setSavedResults(results);
       }
     };
     
-    loadAvatar();
+    loadData();
   }, [user]);
 
   const openFilePicker = () => {
@@ -49,7 +72,6 @@ export default function TryOn() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Use createImageBitmap + canvas to normalize EXIF orientation
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
@@ -61,6 +83,7 @@ export default function TryOn() {
         const normalizedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
         setPersonImage(normalizedDataUrl);
         setTryOnResult(null);
+        setSelectedSavedResult(null);
       }
     };
     img.src = URL.createObjectURL(file);
@@ -71,11 +94,9 @@ export default function TryOn() {
     
     setSavingAvatar(true);
     try {
-      // Convert base64 to blob
       const response = await fetch(personImage);
       const blob = await response.blob();
       
-      // Upload to storage
       const fileName = `${user.id}/avatar.jpg`;
       const { error: uploadError } = await supabase.storage
         .from('avatars')
@@ -83,12 +104,10 @@ export default function TryOn() {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(fileName);
 
-      // Update profile
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert({ 
@@ -109,10 +128,37 @@ export default function TryOn() {
     }
   };
 
+  const saveTryOnResult = async (resultUrl: string) => {
+    if (!user || !selectedItem) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('try_on_results')
+        .insert({
+          user_id: user.id,
+          person_image_url: savedAvatarUrl || personImage || '',
+          clothing_item_id: selectedItem.id,
+          result_image_url: resultUrl,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setSavedResults(prev => [data, ...prev]);
+      }
+    } catch (error) {
+      console.error('Error saving try-on result:', error);
+    }
+  };
+
   const handleTryOn = async () => {
     if (!personImage || !selectedItem) return;
 
     setProcessing(true);
+    setSelectedSavedResult(null);
+    
     try {
       const { data, error } = await supabase.functions.invoke('virtual-tryon', {
         body: {
@@ -127,6 +173,9 @@ export default function TryOn() {
       if (data.tryOnImageUrl) {
         setTryOnResult(data.tryOnImageUrl);
         toast({ title: 'Try-on complete!' });
+        
+        // Save result to history
+        await saveTryOnResult(data.tryOnImageUrl);
       }
     } catch (error) {
       console.error('Error in virtual try-on:', error);
@@ -140,9 +189,44 @@ export default function TryOn() {
     }
   };
 
+  const deleteSavedResult = async (resultId: string) => {
+    try {
+      const { error } = await supabase
+        .from('try_on_results')
+        .delete()
+        .eq('id', resultId);
+
+      if (error) throw error;
+
+      setSavedResults(prev => prev.filter(r => r.id !== resultId));
+      
+      if (selectedSavedResult?.id === resultId) {
+        setSelectedSavedResult(null);
+        setTryOnResult(null);
+      }
+      
+      toast({ title: 'Look deleted' });
+    } catch (error) {
+      console.error('Error deleting result:', error);
+      toast({ title: 'Failed to delete', variant: 'destructive' });
+    }
+  };
+
+  const viewSavedResult = (result: TryOnResult) => {
+    setSelectedSavedResult(result);
+    setTryOnResult(result.result_image_url);
+    
+    // Find and select the matching clothing item
+    const matchingItem = items.find(item => item.id === result.clothing_item_id);
+    if (matchingItem) {
+      setSelectedItem(matchingItem);
+    }
+  };
+
   const clearPersonImage = () => {
-    setPersonImage(savedAvatarUrl); // Reset to saved avatar if available
+    setPersonImage(savedAvatarUrl);
     setTryOnResult(null);
+    setSelectedSavedResult(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -152,6 +236,51 @@ export default function TryOn() {
 
   return (
     <AppLayout title="Fitting Mirror" subtitle="Virtual try-on experience">
+      {/* Saved Looks History */}
+      {savedResults.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <History className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-display text-sm font-medium text-muted-foreground">Your Saved Looks</h3>
+          </div>
+          <ScrollArea className="w-full whitespace-nowrap">
+            <div className="flex gap-3 pb-3">
+              {savedResults.map((result) => (
+                <div key={result.id} className="relative group flex-shrink-0">
+                  <button
+                    onClick={() => viewSavedResult(result)}
+                    className={cn(
+                      "w-20 h-28 rounded-lg overflow-hidden border-2 transition-all",
+                      selectedSavedResult?.id === result.id
+                        ? "border-primary ring-2 ring-primary/20"
+                        : "border-transparent hover:border-primary/30"
+                    )}
+                  >
+                    <img
+                      src={result.result_image_url}
+                      alt="Saved look"
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteSavedResult(result.id);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-2 gap-6 pb-24">
         {/* Left: Person Photo Upload */}
         <div className="space-y-4">
@@ -287,7 +416,11 @@ export default function TryOn() {
                 {items.slice(0, 8).map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => setSelectedItem(item)}
+                    onClick={() => {
+                      setSelectedItem(item);
+                      setTryOnResult(null);
+                      setSelectedSavedResult(null);
+                    }}
                     className={cn(
                       "aspect-square rounded-lg overflow-hidden border-2 transition-all",
                       selectedItem?.id === item.id
@@ -315,7 +448,7 @@ export default function TryOn() {
       </div>
 
       {/* Try On Button */}
-      {personImage && selectedItem && (
+      {personImage && selectedItem && !selectedSavedResult && (
         <div className="fixed bottom-20 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent">
           <Button
             onClick={handleTryOn}

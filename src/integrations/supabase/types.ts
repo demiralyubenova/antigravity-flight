@@ -116,6 +116,41 @@ export type Database = {
         }
         Relationships: []
       }
+      try_on_results: {
+        Row: {
+          clothing_item_id: string | null
+          created_at: string
+          id: string
+          person_image_url: string
+          result_image_url: string
+          user_id: string
+        }
+        Insert: {
+          clothing_item_id?: string | null
+          created_at?: string
+          id?: string
+          person_image_url: string
+          result_image_url: string
+          user_id: string
+        }
+        Update: {
+          clothing_item_id?: string | null
+          created_at?: string
+          id?: string
+          person_image_url?: string
+          result_image_url?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "try_on_results_clothing_item_id_fkey"
+            columns: ["clothing_item_id"]
+            isOneToOne: false
+            referencedRelation: "clothing_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
