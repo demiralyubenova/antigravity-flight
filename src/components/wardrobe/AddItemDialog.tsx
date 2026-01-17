@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, X, Loader2, Wand2 } from 'lucide-react';
+import { Upload, X, Loader2, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { ClothingCategory, ALL_CATEGORIES, CATEGORY_LABELS } from '@/types/wardrobe';
@@ -43,50 +43,64 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [removingBackground, setRemovingBackground] = useState(false);
+  const [processingImage, setProcessingImage] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onload = (e) => setImagePreview(e.target?.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeBackground = async () => {
-    if (!imagePreview) return;
-
-    setRemovingBackground(true);
+  const removeBackground = async (base64Image: string): Promise<{ processedUrl: string; file: File } | null> => {
     try {
       const { data, error } = await supabase.functions.invoke('remove-background', {
-        body: { imageUrl: imagePreview },
+        body: { imageUrl: base64Image },
       });
 
       if (error) throw error;
 
       if (data.processedImageUrl) {
-        setImagePreview(data.processedImageUrl);
-        
         // Convert base64 to file
         const response = await fetch(data.processedImageUrl);
         const blob = await response.blob();
-        const newFile = new File([blob], imageFile?.name || 'processed.png', { type: 'image/png' });
-        setImageFile(newFile);
+        const newFile = new File([blob], 'processed.png', { type: 'image/png' });
         
-        toast({ title: 'Background removed successfully!' });
+        return { processedUrl: data.processedImageUrl, file: newFile };
       }
+      return null;
     } catch (error) {
       console.error('Error removing background:', error);
-      toast({ 
-        title: 'Failed to remove background', 
-        description: 'Please try again or continue with the original image.',
-        variant: 'destructive' 
-      });
-    } finally {
-      setRemovingBackground(false);
+      return null;
     }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setProcessingImage(true);
+    
+    // First, read the file as base64
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64Image = e.target?.result as string;
+      setImagePreview(base64Image); // Show original immediately
+      
+      // Then remove background automatically
+      toast({ title: 'Removing background...', description: 'AI is processing your image' });
+      
+      const result = await removeBackground(base64Image);
+      
+      if (result) {
+        setImagePreview(result.processedUrl);
+        setImageFile(result.file);
+        toast({ title: 'Background removed!', description: 'Your item is ready' });
+      } else {
+        // If background removal fails, keep original
+        setImageFile(file);
+        toast({ 
+          title: 'Could not remove background', 
+          description: 'Using original image instead',
+          variant: 'destructive' 
+        });
+      }
+      setProcessingImage(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,8 +110,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
     setUploading(true);
     try {
       // Upload image to storage
-      const fileExt = imageFile.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}/${Date.now()}.png`;
       
       const { error: uploadError } = await supabase.storage
         .from('clothing')
@@ -129,6 +142,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
       onOpenChange(false);
     } catch (error) {
       console.error('Error uploading image:', error);
+      toast({ title: 'Failed to add item', variant: 'destructive' });
     } finally {
       setUploading(false);
     }
@@ -153,42 +167,39 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
             {imagePreview ? (
               <div className="space-y-2 mt-2">
                 <div className="relative aspect-[3/4] max-w-[200px] rounded-lg overflow-hidden bg-muted">
-                  <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2 h-8 w-8"
-                    onClick={clearImage}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={removeBackground}
-                  disabled={removingBackground}
-                  className="gap-2"
-                >
-                  {removingBackground ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Removing background...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="h-4 w-4" />
-                      Remove Background
-                    </>
+                  <img src={imagePreview} alt="Preview" className="w-full h-full object-contain bg-white" />
+                  {processingImage && (
+                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                      <div className="text-center space-y-2">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                        <p className="text-xs font-medium">Removing background...</p>
+                      </div>
+                    </div>
                   )}
-                </Button>
+                  {!processingImage && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 h-8 w-8"
+                      onClick={clearImage}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                {!processingImage && imageFile && (
+                  <div className="flex items-center gap-1.5 text-xs text-primary">
+                    <Sparkles className="h-3 w-3" />
+                    <span>Background removed automatically</span>
+                  </div>
+                )}
               </div>
             ) : (
               <label className="flex flex-col items-center justify-center h-32 mt-2 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
                 <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                 <span className="text-sm text-muted-foreground">Click to upload</span>
+                <span className="text-xs text-muted-foreground mt-1">Background will be removed automatically</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -256,7 +267,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
           <Button
             type="submit"
             className="w-full"
-            disabled={!imageFile || !name || uploading || removingBackground}
+            disabled={!imageFile || !name || uploading || processingImage}
           >
             {uploading ? 'Uploading...' : 'Add Item'}
           </Button>
