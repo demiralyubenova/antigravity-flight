@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,11 +31,15 @@ import {
   Tag,
   Sparkles,
   ExternalLink,
-  Heart
+  Heart,
+  Camera,
+  Image as ImageIcon,
+  X
 } from 'lucide-react';
 import { useWishlist, WishlistItem } from '@/hooks/useWishlist';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
 const categories = [
@@ -45,6 +49,8 @@ const categories = [
 export default function Wishlist() {
   const { pendingItems, purchasedItems, isLoading, addItem, deleteItem, markPurchased } = useWishlist();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newItem, setNewItem] = useState({
@@ -54,15 +60,91 @@ export default function Wishlist() {
     target_price: '',
     priority: 'medium' as 'low' | 'medium' | 'high',
   });
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   
   const [selectedItem, setSelectedItem] = useState<WishlistItem | null>(null);
   const [shoppingLoading, setShoppingLoading] = useState(false);
   const [shoppingSuggestions, setShoppingSuggestions] = useState('');
 
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (e) => setImagePreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+    setImageFile(file);
+  };
+
+  const removeImage = () => {
+    setImagePreview(null);
+    setImageFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const uploadImage = async (): Promise<string | null> => {
+    if (!imageFile || !user) return null;
+
+    setUploadingImage(true);
+    try {
+      // First, remove background
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(imageFile);
+      });
+
+      const { data: bgData, error: bgError } = await supabase.functions.invoke('remove-background', {
+        body: { imageBase64: base64.split(',')[1] },
+      });
+
+      if (bgError) throw bgError;
+
+      // Convert base64 result back to blob
+      const processedBase64 = bgData.processedImage;
+      const byteCharacters = atob(processedBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
+
+      // Upload to storage
+      const fileName = `${user.id}/wishlist-${Date.now()}.png`;
+      const { error: uploadError } = await supabase.storage
+        .from('clothing')
+        .upload(fileName, blob, { contentType: 'image/png' });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from('clothing').getPublicUrl(fileName);
+      return urlData.publicUrl;
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: 'Image upload failed',
+        description: error.message || 'Could not process image',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleAddItem = async () => {
     if (!newItem.name) {
       toast({ title: 'Please enter an item name', variant: 'destructive' });
       return;
+    }
+
+    let imageUrl: string | null = null;
+    if (imageFile) {
+      imageUrl = await uploadImage();
     }
 
     await addItem.mutateAsync({
@@ -72,11 +154,12 @@ export default function Wishlist() {
       target_price: newItem.target_price ? parseFloat(newItem.target_price) : null,
       priority: newItem.priority,
       source: 'manual',
-      image_url: null,
+      image_url: imageUrl,
       related_outfit_id: null,
     });
 
     setNewItem({ name: '', category: 'Tops', description: '', target_price: '', priority: 'medium' });
+    removeImage();
     setIsAddOpen(false);
   };
 
@@ -121,7 +204,16 @@ export default function Wishlist() {
   const WishlistItemCard = ({ item }: { item: WishlistItem }) => (
     <Card className="border-0 shadow-elegant">
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          {item.image_url && (
+            <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+              <img 
+                src={item.image_url} 
+                alt={item.name} 
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h4 className="font-medium truncate">{item.name}</h4>
@@ -189,10 +281,46 @@ export default function Wishlist() {
             </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader>
+          <DialogHeader>
               <DialogTitle>Add to Wishlist</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
+              {/* Image Upload */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageSelect}
+              />
+              {imagePreview ? (
+                <div className="relative w-full aspect-square max-w-[200px] mx-auto rounded-xl overflow-hidden bg-muted">
+                  <img 
+                    src={imagePreview} 
+                    alt="Preview" 
+                    className="w-full h-full object-cover"
+                  />
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    className="absolute top-2 right-2 h-8 w-8"
+                    onClick={removeImage}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-32 border-dashed flex flex-col gap-2"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Camera className="h-8 w-8 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Add photo (optional)</span>
+                </Button>
+              )}
+
               <Input
                 placeholder="Item name (e.g., Black leather jacket)"
                 value={newItem.name}
@@ -236,10 +364,14 @@ export default function Wishlist() {
               <Button 
                 className="w-full" 
                 onClick={handleAddItem}
-                disabled={addItem.isPending}
+                disabled={addItem.isPending || uploadingImage}
               >
-                {addItem.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Add to Wishlist
+                {(addItem.isPending || uploadingImage) ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    {uploadingImage ? 'Processing image...' : 'Adding...'}
+                  </>
+                ) : 'Add to Wishlist'}
               </Button>
             </div>
           </DialogContent>
