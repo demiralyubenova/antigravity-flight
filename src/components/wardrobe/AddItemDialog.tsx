@@ -68,39 +68,60 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
     }
   };
 
+  const normalizeImageOrientation = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg', 0.9));
+        } else {
+          // Fallback to original
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        }
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setProcessingImage(true);
     
-    // First, read the file as base64
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64Image = e.target?.result as string;
-      setImagePreview(base64Image); // Show original immediately
-      
-      // Then remove background automatically
-      toast({ title: 'Removing background...', description: 'AI is processing your image' });
-      
-      const result = await removeBackground(base64Image);
-      
-      if (result) {
-        setImagePreview(result.processedUrl);
-        setImageFile(result.file);
-        toast({ title: 'Background removed!', description: 'Your item is ready' });
-      } else {
-        // If background removal fails, keep original
-        setImageFile(file);
-        toast({ 
-          title: 'Could not remove background', 
-          description: 'Using original image instead',
-          variant: 'destructive' 
-        });
-      }
-      setProcessingImage(false);
-    };
-    reader.readAsDataURL(file);
+    // Normalize image orientation first (fixes upside-down mobile photos)
+    const normalizedBase64 = await normalizeImageOrientation(file);
+    setImagePreview(normalizedBase64); // Show normalized image immediately
+    
+    // Then remove background automatically
+    toast({ title: 'Removing background...', description: 'AI is processing your image' });
+    
+    const result = await removeBackground(normalizedBase64);
+    
+    if (result) {
+      setImagePreview(result.processedUrl);
+      setImageFile(result.file);
+      toast({ title: 'Background removed!', description: 'Your item is ready' });
+    } else {
+      // If background removal fails, keep normalized image
+      const response = await fetch(normalizedBase64);
+      const blob = await response.blob();
+      const normalizedFile = new File([blob], file.name, { type: 'image/jpeg' });
+      setImageFile(normalizedFile);
+      toast({ 
+        title: 'Could not remove background', 
+        description: 'Using original image instead',
+        variant: 'destructive' 
+      });
+    }
+    setProcessingImage(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
