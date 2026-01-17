@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Camera, Upload, Sparkles, X, Loader2, Save, History, Trash2 } from 'lucide-react';
+import { Camera, Upload, Sparkles, X, Loader2, Save, History, Trash2, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -259,240 +260,253 @@ export default function TryOn() {
 
   return (
     <AppLayout title="Fitting Mirror" subtitle="Virtual try-on experience">
-      {/* Saved Looks History */}
-      {savedResults.length > 0 && (
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <History className="h-4 w-4 text-muted-foreground" />
-            <h3 className="font-display text-sm font-medium text-muted-foreground">Your Saved Looks</h3>
-          </div>
-          <ScrollArea className="w-full whitespace-nowrap">
-            <div className="flex gap-3 pb-3">
-              {savedResults.map((result) => (
-                <div key={result.id} className="relative group flex-shrink-0">
-                  <button
-                    onClick={() => viewSavedResult(result)}
-                    className={cn(
-                      "w-20 h-28 rounded-lg overflow-hidden border-2 transition-all",
-                      selectedSavedResult?.id === result.id
-                        ? "border-primary ring-2 ring-primary/20"
-                        : "border-transparent hover:border-primary/30"
-                    )}
-                  >
-                    <img
-                      src={result.result_image_url}
-                      alt="Saved look"
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteSavedResult(result.id);
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </div>
-      )}
-
-      <div className="grid lg:grid-cols-2 gap-6 pb-24">
-        {/* Left: Person Photo Upload */}
-        <div className="space-y-4">
-          <h3 className="font-display text-lg font-medium tracking-tight">Your Photo</h3>
-          
-          {personImage ? (
-            <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-2xl overflow-hidden bg-muted">
-              <img
-                src={tryOnResult || personImage}
-                alt="Your photo"
-                className="w-full h-full object-cover"
-              />
-              {!processing && (
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-3 right-3"
-                  onClick={clearPersonImage}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-              {processing && (
-                <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-                  <div className="text-center space-y-3">
-                    <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
-                    <p className="text-sm font-medium">Creating your look...</p>
-                  </div>
-                </div>
-              )}
-              {tryOnResult && (
-                <div className="absolute bottom-3 left-3 right-3">
-                  <div className="bg-background/90 backdrop-blur-sm rounded-lg px-3 py-2 text-center">
-                    <span className="text-sm font-medium text-primary">✨ Virtual Try-On Result</span>
-                  </div>
-                </div>
-              )}
-              {isNewPhoto && !tryOnResult && !processing && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="absolute bottom-3 left-3 right-3 gap-2"
-                  onClick={saveAsAvatar}
-                  disabled={savingAvatar}
-                >
-                  {savingAvatar ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {savingAvatar ? 'Saving...' : 'Save as my photo'}
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={openFilePicker}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  openFilePicker();
-                }
-              }}
-              className="block aspect-[3/4] max-w-sm mx-auto rounded-2xl border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer bg-muted/30"
-            >
-              <div className="h-full flex flex-col items-center justify-center p-6 text-center">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <Camera className="h-8 w-8 text-primary" />
-                </div>
-                <h4 className="font-display font-medium mb-1">Upload Your Photo</h4>
-                <p className="text-sm text-muted-foreground mb-4">Take or upload a full-body photo</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    openFilePicker();
-                  }}
-                >
-                  <Upload className="h-4 w-4" />
-                  Choose Photo
-                </Button>
+      <div className="space-y-6 pb-32">
+        {/* Saved Looks History */}
+        {savedResults.length > 0 && (
+          <Card className="border-0 shadow-elegant">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <History className="h-4 w-4 text-primary" />
+                <h3 className="font-display text-sm font-medium">Your Saved Looks</h3>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </div>
-          )}
-        </div>
+              <ScrollArea className="w-full whitespace-nowrap">
+                <div className="flex gap-3 pb-2">
+                  {savedResults.map((result) => (
+                    <div key={result.id} className="relative group flex-shrink-0">
+                      <button
+                        onClick={() => viewSavedResult(result)}
+                        className={cn(
+                          "w-20 h-28 rounded-xl overflow-hidden border-2 transition-all shadow-sm",
+                          selectedSavedResult?.id === result.id
+                            ? "border-primary ring-2 ring-primary/20"
+                            : "border-border hover:border-primary/40"
+                        )}
+                      >
+                        <img
+                          src={result.result_image_url}
+                          alt="Saved look"
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteSavedResult(result.id);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Right: Select Clothing */}
-        <div className="space-y-4">
-          <h3 className="font-display text-lg font-medium tracking-tight">Select Clothing</h3>
-          
-          {items.length === 0 ? (
-            <div className="aspect-[3/4] max-w-sm mx-auto rounded-2xl border border-border bg-muted/30 flex items-center justify-center">
-              <div className="text-center p-6">
-                <p className="text-muted-foreground text-sm">
-                  Add items to your wardrobe first
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Selected item preview */}
-              {selectedItem && (
-                <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-2xl overflow-hidden bg-muted border-2 border-primary">
+        {/* Your Photo Card */}
+        <Card className="border-0 shadow-elegant">
+          <CardContent className="p-5">
+            <h3 className="font-display text-lg font-medium tracking-tight mb-4">Your Photo</h3>
+            
+            {personImage ? (
+              <div className="relative">
+                <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-2xl overflow-hidden bg-muted border border-border">
                   <img
-                    src={selectedItem.image_url}
-                    alt={selectedItem.name}
+                    src={tryOnResult || personImage}
+                    alt="Your photo"
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/90 to-transparent p-4">
-                    <p className="font-medium">{selectedItem.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {CATEGORY_LABELS[selectedItem.category]}
-                    </p>
-                  </div>
+                  {!processing && (
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-3 right-3 h-8 w-8 rounded-full shadow-lg"
+                      onClick={clearPersonImage}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {processing && (
+                    <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+                      <div className="text-center space-y-3">
+                        <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
+                        <p className="text-sm font-medium">Creating your look...</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-
-              {/* Clothing grid */}
-              <div className="grid grid-cols-4 gap-2">
-                {items.slice(0, 8).map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setSelectedItem(item);
-                      setTryOnResult(null);
-                      setSelectedSavedResult(null);
-                    }}
-                    className={cn(
-                      "aspect-square rounded-lg overflow-hidden border-2 transition-all",
-                      selectedItem?.id === item.id
-                        ? "border-primary ring-2 ring-primary/20"
-                        : "border-transparent hover:border-primary/30"
-                    )}
+                
+                {tryOnResult && (
+                  <div className="flex items-center justify-center gap-2 mt-3 text-primary">
+                    <Sparkles className="h-4 w-4" />
+                    <span className="text-sm font-medium">Virtual Try-On Result</span>
+                  </div>
+                )}
+                
+                {isNewPhoto && !tryOnResult && !processing && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full max-w-xs mx-auto mt-4 gap-2"
+                    onClick={saveAsAvatar}
+                    disabled={savingAvatar}
                   >
+                    {savingAvatar ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    {savingAvatar ? 'Saving...' : 'Save as my default photo'}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={openFilePicker}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openFilePicker();
+                  }
+                }}
+                className="aspect-[3/4] max-w-xs mx-auto rounded-2xl border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer bg-muted/30"
+              >
+                <div className="h-full flex flex-col items-center justify-center p-6 text-center">
+                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                    <Camera className="h-8 w-8 text-primary" />
+                  </div>
+                  <h4 className="font-display font-medium mb-1">Upload Your Photo</h4>
+                  <p className="text-sm text-muted-foreground mb-4">Take or upload a full-body photo</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      openFilePicker();
+                    }}
+                  >
+                    <Upload className="h-4 w-4" />
+                    Choose Photo
+                  </Button>
+                </div>
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Select Clothing Card */}
+        <Card className="border-0 shadow-elegant">
+          <CardContent className="p-5">
+            <h3 className="font-display text-lg font-medium tracking-tight mb-4">Select Clothing</h3>
+            
+            {items.length === 0 ? (
+              <div className="aspect-[3/4] max-w-xs mx-auto rounded-2xl border border-border bg-muted/30 flex items-center justify-center">
+                <div className="text-center p-6">
+                  <p className="text-muted-foreground text-sm">
+                    Add items to your wardrobe first
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Selected item preview */}
+                {selectedItem && (
+                  <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-2xl overflow-hidden bg-muted border-2 border-primary">
                     <img
-                      src={item.image_url}
-                      alt={item.name}
+                      src={selectedItem.image_url}
+                      alt={selectedItem.name}
                       className="w-full h-full object-cover"
                     />
-                  </button>
-                ))}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/95 via-background/70 to-transparent p-4">
+                      <p className="font-display font-medium">{selectedItem.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {CATEGORY_LABELS[selectedItem.category]}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Clothing grid */}
+                <div>
+                  <p className="text-sm text-muted-foreground mb-3">Choose an item from your wardrobe</p>
+                  <div className="grid grid-cols-4 gap-3">
+                    {items.slice(0, 8).map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setSelectedItem(item);
+                          setTryOnResult(null);
+                          setSelectedSavedResult(null);
+                        }}
+                        className={cn(
+                          "aspect-square rounded-xl overflow-hidden border-2 transition-all shadow-sm",
+                          selectedItem?.id === item.id
+                            ? "border-primary ring-2 ring-primary/20"
+                            : "border-border hover:border-primary/40"
+                        )}
+                      >
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {items.length > 8 && (
+                  <Button variant="ghost" size="sm" className="w-full text-muted-foreground">
+                    View all {items.length} items
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                )}
               </div>
-
-              {items.length > 8 && (
-                <p className="text-xs text-center text-muted-foreground">
-                  Showing 8 of {items.length} items
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Try On Button */}
-      {personImage && selectedItem && !selectedSavedResult && (
-        <div className="fixed bottom-20 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent">
-          <Button
-            onClick={handleTryOn}
-            disabled={processing}
-            className="w-full max-w-md mx-auto h-14 text-lg gap-3"
-            size="lg"
-          >
-            {processing ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-5 w-5" />
-                Try It On
-              </>
             )}
-          </Button>
-        </div>
-      )}
+          </CardContent>
+        </Card>
+
+        {/* Try On Button */}
+        {personImage && selectedItem && !selectedSavedResult && (
+          <div className="fixed bottom-20 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent">
+            <Button
+              onClick={handleTryOn}
+              disabled={processing}
+              className="w-full max-w-md mx-auto h-14 text-lg gap-3 rounded-2xl shadow-elegant-lg"
+              size="lg"
+            >
+              {processing ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-5 w-5" />
+                  Try It On
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+      </div>
     </AppLayout>
   );
 }
