@@ -128,17 +128,34 @@ export default function TryOn() {
     }
   };
 
-  const saveTryOnResult = async (resultUrl: string) => {
-    if (!user || !selectedItem) return;
+  const saveTryOnResult = async (resultBase64: string): Promise<string | null> => {
+    if (!user || !selectedItem) return null;
 
     try {
+      // Convert base64 to blob and upload to storage
+      const response = await fetch(resultBase64);
+      const blob = await response.blob();
+      
+      const fileName = `${user.id}/${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from('try-on-results')
+        .upload(fileName, blob);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('try-on-results')
+        .getPublicUrl(fileName);
+
+      // Save to database with storage URL
       const { data, error } = await supabase
         .from('try_on_results')
         .insert({
           user_id: user.id,
-          person_image_url: savedAvatarUrl || personImage || '',
+          person_image_url: savedAvatarUrl || '',
           clothing_item_id: selectedItem.id,
-          result_image_url: resultUrl,
+          result_image_url: publicUrl,
         })
         .select()
         .single();
@@ -148,8 +165,11 @@ export default function TryOn() {
       if (data) {
         setSavedResults(prev => [data, ...prev]);
       }
+      
+      return publicUrl;
     } catch (error) {
       console.error('Error saving try-on result:', error);
+      return null;
     }
   };
 
@@ -172,10 +192,13 @@ export default function TryOn() {
 
       if (data.tryOnImageUrl) {
         setTryOnResult(data.tryOnImageUrl);
-        toast({ title: 'Try-on complete!' });
+        toast({ title: 'Try-on complete!', description: 'Saving to your history...' });
         
-        // Save result to history
-        await saveTryOnResult(data.tryOnImageUrl);
+        // Save result to storage and database
+        const savedUrl = await saveTryOnResult(data.tryOnImageUrl);
+        if (savedUrl) {
+          setTryOnResult(savedUrl); // Update to use the persistent URL
+        }
       }
     } catch (error) {
       console.error('Error in virtual try-on:', error);
