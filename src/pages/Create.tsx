@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Sparkles, Eye, RefreshCw, AlertTriangle, ShoppingBag } from 'lucide-react';
+import { Loader2, Sparkles, Eye, RefreshCw, AlertTriangle, ShoppingBag, Check } from 'lucide-react';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ClothingItem } from '@/types/wardrobe';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
+import { format } from 'date-fns';
 
 interface OutfitSuggestion {
   name: string;
@@ -30,6 +31,8 @@ export default function Create() {
   const [personImage, setPersonImage] = useState<string | null>(null);
   const [recentOutfits, setRecentOutfits] = useState<any[]>([]);
   const [insufficientWardrobe, setInsufficientWardrobe] = useState<{ insufficient: boolean; missingItems: string[] } | null>(null);
+  const [wornOutfits, setWornOutfits] = useState<Set<number>>(new Set());
+  const [savingOutfit, setSavingOutfit] = useState<number | null>(null);
 
   // Load user's avatar for try-on
   useEffect(() => {
@@ -219,6 +222,43 @@ export default function Create() {
       });
     } finally {
       setTryOnLoading(null);
+    }
+  };
+
+  const handleWearToday = async (index: number) => {
+    const outfit = outfitSuggestions[index];
+    
+    if (!user || !outfit.items || outfit.items.length === 0) return;
+
+    setSavingOutfit(index);
+    try {
+      const today = new Date();
+      const { error } = await supabase
+        .from('outfits')
+        .insert({
+          user_id: user.id,
+          name: outfit.name,
+          item_ids: outfit.itemIds,
+          occasion: occasion || null,
+          worn_at: today.toISOString(),
+        });
+
+      if (error) throw error;
+
+      setWornOutfits(prev => new Set([...prev, index]));
+      toast({ 
+        title: 'Outfit logged!', 
+        description: `Added to your history for ${format(today, 'MMM d, yyyy')}` 
+      });
+    } catch (error: any) {
+      console.error('Error saving outfit:', error);
+      toast({ 
+        title: 'Failed to save outfit', 
+        description: error.message,
+        variant: 'destructive' 
+      });
+    } finally {
+      setSavingOutfit(null);
     }
   };
 
@@ -426,25 +466,50 @@ export default function Create() {
                       </div>
                     )}
 
-                    {/* Try On Button */}
-                    <Button
-                      onClick={() => handleTryOn(index)}
-                      disabled={tryOnLoading !== null || !personImage}
-                      variant={tryOnResults[index] ? "secondary" : "default"}
-                      className="w-full gap-2 rounded-xl h-11"
-                    >
-                      {tryOnLoading === index ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Creating your look...
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="h-4 w-4" />
-                          {tryOnResults[index] ? 'Try On Again' : 'Try On This Outfit'}
-                        </>
-                      )}
-                    </Button>
+                    {/* Action Buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => handleTryOn(index)}
+                        disabled={tryOnLoading !== null || !personImage}
+                        variant={tryOnResults[index] ? "secondary" : "outline"}
+                        className="flex-1 gap-2 rounded-xl h-11"
+                      >
+                        {tryOnLoading === index ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="h-4 w-4" />
+                            {tryOnResults[index] ? 'Try Again' : 'Try On'}
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() => handleWearToday(index)}
+                        disabled={savingOutfit !== null || wornOutfits.has(index)}
+                        variant={wornOutfits.has(index) ? "secondary" : "default"}
+                        className="flex-1 gap-2 rounded-xl h-11"
+                      >
+                        {savingOutfit === index ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : wornOutfits.has(index) ? (
+                          <>
+                            <Check className="h-4 w-4" />
+                            Logged!
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-4 w-4" />
+                            Wear Today
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
