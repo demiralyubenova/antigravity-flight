@@ -69,7 +69,7 @@ export default function Wardrobe() {
   };
 
   return (
-    <AppLayout title="The Atelier" subtitle="Your digital wardrobe">
+    <AppLayout title="My Wardrobe" subtitle="Your digital closet">
       <CategoryTabs
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}

@@ -6,54 +6,54 @@
 
 @layer base {
   :root {
-    /* Warm cream background with sophisticated contrast */
-    --background: 40 33% 97%;
-    --foreground: 240 10% 10%;
+    /* Clean white background */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 15%;
 
-    --card: 40 30% 99%;
-    --card-foreground: 240 10% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 15%;
 
-    --popover: 40 30% 99%;
-    --popover-foreground: 240 10% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 15%;
 
-    /* Rich burgundy primary for elegance */
-    --primary: 350 60% 30%;
-    --primary-foreground: 40 33% 97%;
+    /* Soft pastel pink primary */
+    --primary: 340 65% 75%;
+    --primary-foreground: 240 10% 15%;
 
-    /* Soft taupe secondary */
-    --secondary: 30 20% 92%;
-    --secondary-foreground: 240 10% 10%;
+    /* Light lavender secondary */
+    --secondary: 270 30% 95%;
+    --secondary-foreground: 240 10% 15%;
 
-    --muted: 30 15% 90%;
+    --muted: 220 20% 96%;
     --muted-foreground: 240 5% 45%;
 
-    /* Gold accent for luxury feel */
-    --accent: 42 70% 50%;
-    --accent-foreground: 240 10% 10%;
+    /* Pastel mint accent */
+    --accent: 160 40% 85%;
+    --accent-foreground: 240 10% 15%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 40 33% 97%;
+    --destructive: 0 65% 65%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 30 20% 88%;
-    --input: 30 20% 92%;
-    --ring: 350 60% 30%;
+    --border: 220 15% 90%;
+    --input: 220 15% 95%;
+    --ring: 340 65% 75%;
 
     --radius: 0.75rem;
 
     /* Navigation */
-    --nav-background: 40 30% 99%;
-    --nav-foreground: 240 10% 10%;
-    --nav-active: 350 60% 30%;
+    --nav-background: 0 0% 100%;
+    --nav-foreground: 240 10% 15%;
+    --nav-active: 340 65% 70%;
     --nav-muted: 240 5% 55%;
 
-    --sidebar-background: 40 30% 99%;
-    --sidebar-foreground: 240 10% 10%;
-    --sidebar-primary: 350 60% 30%;
-    --sidebar-primary-foreground: 40 33% 97%;
-    --sidebar-accent: 30 20% 92%;
-    --sidebar-accent-foreground: 240 10% 10%;
-    --sidebar-border: 30 20% 88%;
-    --sidebar-ring: 350 60% 30%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 10% 15%;
+    --sidebar-primary: 340 65% 75%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 270 30% 95%;
+    --sidebar-accent-foreground: 240 10% 15%;
+    --sidebar-border: 220 15% 90%;
+    --sidebar-ring: 340 65% 75%;
   }
 
   .dark {
