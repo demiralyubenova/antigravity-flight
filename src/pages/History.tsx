@@ -1,17 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { supabase } from '@/integrations/supabase/client';
 import { ClothingItem, CATEGORY_LABELS } from '@/types/wardrobe';
-import { Plus, X, Shirt } from 'lucide-react';
-import { format, isSameDay } from 'date-fns';
+import { Plus, X, Shirt, CalendarDays, Plane } from 'lucide-react';
+import { format, isSameDay, isWithinInterval } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 interface Outfit {
@@ -19,8 +20,18 @@ interface Outfit {
   name: string;
   item_ids: string[];
   occasion: string | null;
+  event_name: string | null;
+  is_planned: boolean;
   worn_at: string | null;
   created_at: string;
+}
+
+interface Trip {
+  id: string;
+  name: string;
+  destination: string | null;
+  start_date: string;
+  end_date: string;
 }
 
 export default function History() {
@@ -34,6 +45,9 @@ export default function History() {
   const [outfitName, setOutfitName] = useState('');
   const [occasion, setOccasion] = useState('');
   const [saving, setSaving] = useState(false);
+  const [eventName, setEventName] = useState('');
+  const [isPlanned, setIsPlanned] = useState(false);
+  const [trips, setTrips] = useState<Trip[]>([]);
 
   // Load outfits
   useEffect(() => {
@@ -57,19 +71,74 @@ export default function History() {
     loadOutfits();
   }, [user]);
 
-  // Get outfits for a specific date
+  // Load trips for calendar indicators
+  useEffect(() => {
+    if (!user) return;
+
+    const loadTrips = async () => {
+      const { data, error } = await supabase
+        .from('trips')
+        .select('id, name, destination, start_date, end_date')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error loading trips:', error);
+        return;
+      }
+
+      setTrips(data || []);
+    };
+
+    loadTrips();
+  }, [user]);
+
+  // Get outfits for a specific date (both worn and planned)
   const getOutfitsForDate = (date: Date) => {
     return outfits.filter(outfit => 
       outfit.worn_at && isSameDay(new Date(outfit.worn_at), date)
     );
   };
 
-  // Get dates that have outfits
-  const datesWithOutfits = outfits
-    .filter(o => o.worn_at)
-    .map(o => new Date(o.worn_at!));
+  // Separate worn and planned outfits
+  const wornOutfits = useMemo(() => 
+    outfits.filter(o => o.worn_at && !o.is_planned), [outfits]
+  );
+  
+  const plannedOutfits = useMemo(() => 
+    outfits.filter(o => o.worn_at && o.is_planned), [outfits]
+  );
+
+  // Get dates that have worn outfits
+  const datesWithWornOutfits = wornOutfits.map(o => new Date(o.worn_at!));
+  
+  // Get dates that have planned outfits
+  const datesWithPlannedOutfits = plannedOutfits.map(o => new Date(o.worn_at!));
+
+  // Get trip for a specific date
+  const getTripForDate = (date: Date) => {
+    return trips.find(trip => {
+      const start = new Date(trip.start_date);
+      const end = new Date(trip.end_date);
+      return isWithinInterval(date, { start, end });
+    });
+  };
+
+  // Get dates that are part of trips
+  const datesInTrips = useMemo(() => {
+    const dates: Date[] = [];
+    trips.forEach(trip => {
+      let current = new Date(trip.start_date);
+      const end = new Date(trip.end_date);
+      while (current <= end) {
+        dates.push(new Date(current));
+        current.setDate(current.getDate() + 1);
+      }
+    });
+    return dates;
+  }, [trips]);
 
   const outfitsForSelectedDate = selectedDate ? getOutfitsForDate(selectedDate) : [];
+  const tripForSelectedDate = selectedDate ? getTripForDate(selectedDate) : null;
 
   const toggleItem = (itemId: string) => {
     setSelectedItems(prev => 
@@ -82,6 +151,8 @@ export default function History() {
   const saveOutfit = async () => {
     if (!user || selectedItems.length === 0 || !selectedDate) return;
 
+    const isFutureDate = selectedDate > new Date();
+
     setSaving(true);
     try {
       const { data, error } = await supabase
@@ -91,6 +162,8 @@ export default function History() {
           name: outfitName || `Outfit for ${format(selectedDate, 'MMM d')}`,
           item_ids: selectedItems,
           occasion: occasion || null,
+          event_name: eventName || null,
+          is_planned: isFutureDate || isPlanned,
           worn_at: selectedDate.toISOString(),
         })
         .select()
@@ -103,12 +176,33 @@ export default function History() {
       setSelectedItems([]);
       setOutfitName('');
       setOccasion('');
-      toast({ title: 'Outfit logged!' });
+      setEventName('');
+      setIsPlanned(false);
+      toast({ title: isFutureDate ? 'Outfit planned!' : 'Outfit logged!' });
     } catch (error) {
       console.error('Error saving outfit:', error);
       toast({ title: 'Failed to save outfit', variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const markAsWorn = async (outfitId: string) => {
+    try {
+      const { error } = await supabase
+        .from('outfits')
+        .update({ is_planned: false })
+        .eq('id', outfitId);
+
+      if (error) throw error;
+
+      setOutfits(prev => prev.map(o => 
+        o.id === outfitId ? { ...o, is_planned: false } : o
+      ));
+      toast({ title: 'Marked as worn!' });
+    } catch (error) {
+      console.error('Error updating outfit:', error);
+      toast({ title: 'Failed to update', variant: 'destructive' });
     }
   };
 
@@ -133,26 +227,75 @@ export default function History() {
     clothingItems.find(item => item.id === itemId);
 
   return (
-    <AppLayout title="Outfit History" subtitle="Track what you wore">
+    <AppLayout title="Outfit History" subtitle="Track what you wore & plan ahead">
       <div className="space-y-6 pb-24">
         {/* Calendar Card */}
         <div className="bg-card rounded-2xl shadow-elegant p-5">
-          <h3 className="font-display text-lg font-semibold mb-4">Calendar</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-display text-lg font-semibold">Calendar</h3>
+            <div className="flex items-center gap-3 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-primary/30" />
+                <span className="text-muted-foreground">Worn</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full border-2 border-primary" />
+                <span className="text-muted-foreground">Planned</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Plane className="h-3 w-3 text-accent-foreground" />
+                <span className="text-muted-foreground">Trip</span>
+              </div>
+            </div>
+          </div>
           <Calendar
             mode="single"
             selected={selectedDate}
             onSelect={setSelectedDate}
             modifiers={{
-              hasOutfit: datesWithOutfits,
+              hasWornOutfit: datesWithWornOutfits,
+              hasPlannedOutfit: datesWithPlannedOutfits,
+              inTrip: datesInTrips,
             }}
             modifiersStyles={{
-              hasOutfit: {
-                backgroundColor: 'hsl(var(--primary) / 0.15)',
+              hasWornOutfit: {
+                backgroundColor: 'hsl(var(--primary) / 0.2)',
+                borderRadius: '12px',
+              },
+              hasPlannedOutfit: {
+                border: '2px solid hsl(var(--primary))',
+                borderRadius: '12px',
+              },
+              inTrip: {
+                backgroundColor: 'hsl(var(--accent) / 0.3)',
                 borderRadius: '12px',
               },
             }}
           />
         </div>
+
+        {/* Trip Indicator for Selected Date */}
+        {tripForSelectedDate && (
+          <div className="bg-accent/20 rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-accent/30 flex items-center justify-center">
+              <Plane className="h-5 w-5 text-accent-foreground" />
+            </div>
+            <div>
+              <p className="font-medium text-sm">{tripForSelectedDate.name}</p>
+              {tripForSelectedDate.destination && (
+                <p className="text-xs text-muted-foreground">{tripForSelectedDate.destination}</p>
+              )}
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="ml-auto rounded-lg"
+              onClick={() => window.location.href = '/travel'}
+            >
+              View Trip
+            </Button>
+          </div>
+        )}
 
         {/* Selected Date Outfits Card */}
         <div className="bg-card rounded-2xl shadow-elegant p-5">
@@ -162,41 +305,71 @@ export default function History() {
             </h3>
             <Button size="sm" onClick={() => setShowAddDialog(true)} className="gap-2 rounded-xl">
               <Plus className="h-4 w-4" />
-              Log Outfit
+              {selectedDate && selectedDate > new Date() ? 'Plan Outfit' : 'Log Outfit'}
             </Button>
           </div>
 
           {outfitsForSelectedDate.length === 0 ? (
             <div className="bg-muted/30 rounded-xl border border-dashed p-8 text-center">
               <Shirt className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-              <p className="text-muted-foreground text-sm">No outfits logged for this day</p>
+              <p className="text-muted-foreground text-sm">
+                {selectedDate && selectedDate > new Date() 
+                  ? 'No outfits planned for this day' 
+                  : 'No outfits logged for this day'}
+              </p>
               <Button 
                 variant="link" 
                 className="mt-2"
                 onClick={() => setShowAddDialog(true)}
               >
-                Log what you wore
+                {selectedDate && selectedDate > new Date() ? 'Plan an outfit' : 'Log what you wore'}
               </Button>
             </div>
           ) : (
             <div className="space-y-3">
               {outfitsForSelectedDate.map(outfit => (
-                <div key={outfit.id} className="bg-secondary/30 rounded-xl p-4">
+                <div key={outfit.id} className={cn(
+                  "rounded-xl p-4",
+                  outfit.is_planned ? "bg-primary/5 border border-primary/20" : "bg-secondary/30"
+                )}>
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h4 className="font-medium">{outfit.name}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium">{outfit.name}</h4>
+                        {outfit.is_planned && (
+                          <Badge variant="outline" className="text-xs">
+                            <CalendarDays className="h-3 w-3 mr-1" />
+                            Planned
+                          </Badge>
+                        )}
+                      </div>
+                      {outfit.event_name && (
+                        <p className="text-sm font-medium text-primary">{outfit.event_name}</p>
+                      )}
                       {outfit.occasion && (
                         <p className="text-sm text-muted-foreground">{outfit.occasion}</p>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive rounded-full"
-                      onClick={() => deleteOutfit(outfit.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {outfit.is_planned && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-xs text-primary hover:text-primary"
+                          onClick={() => markAsWorn(outfit.id)}
+                        >
+                          Mark Worn
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive rounded-full"
+                        onClick={() => deleteOutfit(outfit.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     {outfit.item_ids.map(itemId => {
@@ -224,16 +397,31 @@ export default function History() {
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Log Outfit for {selectedDate && format(selectedDate, 'MMM d')}</DialogTitle>
+            <DialogTitle>
+              {selectedDate && selectedDate > new Date() 
+                ? `Plan Outfit for ${format(selectedDate, 'MMM d')}`
+                : `Log Outfit for ${selectedDate && format(selectedDate, 'MMM d')}`
+              }
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
+            <div>
+              <Label>Event Name (optional)</Label>
+              <Input
+                value={eventName}
+                onChange={(e) => setEventName(e.target.value)}
+                placeholder="e.g., Friday dinner, Wedding, Conference"
+                className="mt-1.5"
+              />
+            </div>
+
             <div>
               <Label>Outfit Name (optional)</Label>
               <Input
                 value={outfitName}
                 onChange={(e) => setOutfitName(e.target.value)}
-                placeholder="e.g., Work meeting look"
+                placeholder="e.g., Smart casual look"
                 className="mt-1.5"
               />
             </div>
@@ -282,7 +470,7 @@ export default function History() {
               disabled={selectedItems.length === 0 || saving}
               className="w-full"
             >
-              {saving ? 'Saving...' : 'Save Outfit'}
+              {saving ? 'Saving...' : (selectedDate && selectedDate > new Date() ? 'Plan Outfit' : 'Save Outfit')}
             </Button>
           </div>
         </DialogContent>

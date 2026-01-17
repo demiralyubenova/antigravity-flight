@@ -10,6 +10,7 @@ import TryOn from "./pages/TryOn";
 import Create from "./pages/Create";
 import Stylist from "./pages/Stylist";
 import History from "./pages/History";
+import Travel from "./pages/Travel";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,7 @@ const App = () => (
           <Route path="/create" element={<ProtectedRoute><Create /></ProtectedRoute>} />
           <Route path="/stylist" element={<ProtectedRoute><Stylist /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+          <Route path="/travel" element={<ProtectedRoute><Travel /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>

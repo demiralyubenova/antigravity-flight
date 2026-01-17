@@ -1,13 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Shirt, Sparkles, Palette, MessageCircle, History } from 'lucide-react';
+import { Shirt, Sparkles, Palette, MessageCircle, Plane } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { path: '/wardrobe', label: 'Wardrobe', icon: Shirt },
-  { path: '/try-on', label: 'Try On', icon: Sparkles },
   { path: '/create', label: 'Create', icon: Palette },
+  { path: '/travel', label: 'Travel', icon: Plane },
   { path: '/stylist', label: 'Stylist', icon: MessageCircle },
-  { path: '/history', label: 'History', icon: History },
+  { path: '/try-on', label: 'Try On', icon: Sparkles },
 ];
 
 export function BottomNav() {
