@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Sparkles, Eye, RefreshCw, AlertTriangle, ShoppingBag, Check, CalendarDays } from 'lucide-react';
+import { Loader2, Sparkles, Eye, RefreshCw, AlertTriangle, ShoppingBag, Check, CalendarDays, CloudSun } from 'lucide-react';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,6 +11,8 @@ import { ClothingItem } from '@/types/wardrobe';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
+import { WeatherOutfits } from '@/components/weather/WeatherOutfits';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface OutfitSuggestion {
   name: string;
@@ -264,7 +266,24 @@ export default function Create() {
 
   return (
     <AppLayout title="Outfit Creator" subtitle="AI-powered outfit suggestions">
-      <div className="pb-24 space-y-6">
+      <div className="pb-24 px-4">
+        <Tabs defaultValue="weather" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="weather" className="gap-2">
+              <CloudSun className="h-4 w-4" />
+              Weather
+            </TabsTrigger>
+            <TabsTrigger value="occasion" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              Occasion
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="weather" className="space-y-4">
+            <WeatherOutfits />
+          </TabsContent>
+
+          <TabsContent value="occasion" className="space-y-6">
         {/* Occasion Input Card */}
         <Card className="border-0 shadow-elegant">
           <CardContent className="p-5 space-y-4">
@@ -556,6 +575,8 @@ export default function Create() {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );

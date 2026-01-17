@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.generate-outfits]
 verify_jwt = false
+
+[functions.weather-outfits]
+verify_jwt = false

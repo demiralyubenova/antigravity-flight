@@ -7,6 +7,7 @@ interface Profile {
   user_id: string;
   display_name: string | null;
   avatar_url: string | null;
+  cold_tolerance: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,7 +47,7 @@ export function useProfile() {
     fetchProfile();
   }, [fetchProfile]);
 
-  const updateProfile = useCallback(async (updates: Partial<Pick<Profile, 'display_name' | 'avatar_url'>>) => {
+  const updateProfile = useCallback(async (updates: Partial<Pick<Profile, 'display_name' | 'avatar_url' | 'cold_tolerance'>>) => {
     if (!user) return { error: new Error('Not authenticated') };
 
     const { data, error } = await supabase
