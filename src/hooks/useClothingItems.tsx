@@ -32,7 +32,7 @@ export function useClothingItems(category?: ClothingCategory | 'all') {
   });
 
   const addItem = useMutation({
-    mutationFn: async (item: Omit<ClothingItem, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+    mutationFn: async (item: Omit<ClothingItem, 'id' | 'user_id' | 'created_at' | 'updated_at'> & { price?: number }) => {
       if (!user) throw new Error('Not authenticated');
       
       const { data, error } = await supabase

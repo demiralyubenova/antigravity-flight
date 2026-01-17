@@ -1,13 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Shirt, Palette, History, Plane, Sparkles, MessageCircle } from 'lucide-react';
+import { Shirt, Palette, History, BarChart3, Sparkles, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { path: '/wardrobe', label: 'Wardrobe', icon: Shirt },
   { path: '/create', label: 'Create', icon: Palette },
-  { path: '/try-on', label: 'Try On', icon: Sparkles },
   { path: '/history', label: 'History', icon: History },
-  { path: '/travel', label: 'Travel', icon: Plane },
+  { path: '/insights', label: 'Insights', icon: BarChart3 },
+  { path: '/try-on', label: 'Try On', icon: Sparkles },
   { path: '/stylist', label: 'Stylist', icon: MessageCircle },
 ];
 

@@ -30,6 +30,7 @@ interface AddItemDialogProps {
     image_url: string;
     color?: string;
     brand?: string;
+    price?: number;
   }) => void;
 }
 
@@ -40,6 +41,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
   const [category, setCategory] = useState<ClothingCategory>('tops');
   const [color, setColor] = useState('');
   const [brand, setBrand] = useState('');
+  const [price, setPrice] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -179,6 +181,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
         image_url: publicUrl,
         color: color || undefined,
         brand: brand || undefined,
+        price: price ? parseFloat(price) : undefined,
       });
 
       // Reset form
@@ -186,6 +189,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
       setCategory('tops');
       setColor('');
       setBrand('');
+      setPrice('');
       setImageFile(null);
       setImagePreview(null);
       onOpenChange(false);
@@ -289,15 +293,15 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
             </Select>
           </div>
 
-          {/* Color & Brand */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Color, Brand & Price */}
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <Label htmlFor="color">Color</Label>
               <Input
                 id="color"
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
-                placeholder="e.g., White"
+                placeholder="White"
                 className="mt-1.5"
               />
             </div>
@@ -307,7 +311,20 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
                 id="brand"
                 value={brand}
                 onChange={(e) => setBrand(e.target.value)}
-                placeholder="e.g., Zara"
+                placeholder="Zara"
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label htmlFor="price">Price</Label>
+              <Input
+                id="price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="$49"
                 className="mt-1.5"
               />
             </div>
