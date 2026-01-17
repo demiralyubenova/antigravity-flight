@@ -1,21 +1,45 @@
-import { useState, useRef, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Camera, Upload, Sparkles, X, Loader2 } from 'lucide-react';
+import { Camera, Upload, Sparkles, X, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { ClothingItem, CATEGORY_LABELS } from '@/types/wardrobe';
 import { cn } from '@/lib/utils';
 
 export default function TryOn() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const { items } = useClothingItems('all');
   const [personImage, setPersonImage] = useState<string | null>(null);
+  const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<ClothingItem | null>(null);
   const [tryOnResult, setTryOnResult] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [savingAvatar, setSavingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load saved avatar on mount
+  useEffect(() => {
+    if (!user) return;
+    
+    const loadAvatar = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (data?.avatar_url) {
+        setSavedAvatarUrl(data.avatar_url);
+        setPersonImage(data.avatar_url);
+      }
+    };
+    
+    loadAvatar();
+  }, [user]);
 
   const openFilePicker = () => {
     fileInputRef.current?.click();
@@ -40,6 +64,49 @@ export default function TryOn() {
       }
     };
     img.src = URL.createObjectURL(file);
+  };
+
+  const saveAsAvatar = async () => {
+    if (!personImage || !user) return;
+    
+    setSavingAvatar(true);
+    try {
+      // Convert base64 to blob
+      const response = await fetch(personImage);
+      const blob = await response.blob();
+      
+      // Upload to storage
+      const fileName = `${user.id}/avatar.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, blob, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      // Update profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({ 
+          user_id: user.id, 
+          avatar_url: publicUrl,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+
+      if (profileError) throw profileError;
+
+      setSavedAvatarUrl(publicUrl);
+      toast({ title: 'Photo saved!', description: 'This will be your default try-on photo' });
+    } catch (error) {
+      console.error('Error saving avatar:', error);
+      toast({ title: 'Failed to save photo', variant: 'destructive' });
+    } finally {
+      setSavingAvatar(false);
+    }
   };
 
   const handleTryOn = async () => {
@@ -74,12 +141,14 @@ export default function TryOn() {
   };
 
   const clearPersonImage = () => {
-    setPersonImage(null);
+    setPersonImage(savedAvatarUrl); // Reset to saved avatar if available
     setTryOnResult(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
+
+  const isNewPhoto = personImage && personImage !== savedAvatarUrl && personImage.startsWith('data:');
 
   return (
     <AppLayout title="Fitting Mirror" subtitle="Virtual try-on experience">
@@ -119,6 +188,22 @@ export default function TryOn() {
                     <span className="text-sm font-medium text-primary">✨ Virtual Try-On Result</span>
                   </div>
                 </div>
+              )}
+              {isNewPhoto && !tryOnResult && !processing && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="absolute bottom-3 left-3 right-3 gap-2"
+                  onClick={saveAsAvatar}
+                  disabled={savingAvatar}
+                >
+                  {savingAvatar ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {savingAvatar ? 'Saving...' : 'Save as my photo'}
+                </Button>
               )}
             </div>
           ) : (
