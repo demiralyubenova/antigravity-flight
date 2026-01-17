@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.stylist-chat]
 verify_jwt = false
+
+[functions.outfit-tryon]
+verify_jwt = false
