@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { useWishlist } from '@/hooks/useWishlist';
+import { useOutfitVariety } from '@/hooks/useOutfitVariety';
 import { supabase } from '@/integrations/supabase/client';
 import { ClothingItem, CATEGORY_LABELS, ClothingCategory } from '@/types/wardrobe';
 import { 
   TrendingUp, TrendingDown, DollarSign, Shirt, 
-  PieChart, Tag, AlertCircle, Star, Package, ShoppingBag, Plus
+  PieChart, Tag, AlertCircle, Star, Package, ShoppingBag, Plus,
+  Shuffle, Clock
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +38,10 @@ export default function Insights() {
   const { toast } = useToast();
   const { items: clothingItems } = useClothingItems('all');
   const { addItem: addToWishlist, pendingItems: wishlistItems } = useWishlist();
+  const { 
+    varietyScore, 
+    neglectedItems 
+  } = useOutfitVariety();
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -271,6 +277,61 @@ export default function Insights() {
   return (
     <AppLayout title="Wardrobe Insights" subtitle="Understand your style habits">
       <div className="space-y-6 pb-24">
+        {/* Variety Score Banner */}
+        <Card className="border-0 shadow-elegant bg-gradient-to-r from-accent/20 to-primary/10">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Shuffle className="h-5 w-5 text-primary" />
+                <span className="font-display font-semibold">Outfit Variety</span>
+              </div>
+              <span className="text-2xl font-bold">{varietyScore}%</span>
+            </div>
+            <Progress value={varietyScore} className="h-2" />
+            <p className="text-xs text-muted-foreground mt-2">
+              {varietyScore >= 80 
+                ? "Great variety! You're mixing things up well." 
+                : varietyScore >= 50 
+                  ? "Good variety, but try some new combinations." 
+                  : "Your recent outfits are quite similar. Try mixing it up!"}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Neglected Items */}
+        {neglectedItems.length > 0 && (
+          <Card className="border-0 shadow-elegant bg-amber-500/5">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Clock className="h-4 w-4 text-amber-500" />
+                <h3 className="font-display font-semibold">Not Worn in 30+ Days</h3>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {neglectedItems.length} items
+                </span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {neglectedItems.slice(0, 6).map((item) => (
+                  <div key={item.id} className="flex-shrink-0">
+                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-muted border-2 border-amber-500/20">
+                      <img 
+                        src={(clothingItems.find(c => c.id === item.id) as any)?.image_url} 
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <p className="text-xs text-center mt-1 truncate w-14 text-muted-foreground">
+                      {item.name}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Consider incorporating these into new outfits!
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Key Stats Row */}
         <div className="grid grid-cols-2 gap-3">
           <Card className="border-0 shadow-elegant">

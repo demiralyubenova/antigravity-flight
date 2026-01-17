@@ -22,12 +22,14 @@ export type Database = {
           created_at: string
           id: string
           image_url: string
+          last_worn_at: string | null
           name: string
           price: number | null
           purchase_date: string | null
           tags: string[] | null
           updated_at: string
           user_id: string
+          wear_count: number
         }
         Insert: {
           brand?: string | null
@@ -36,12 +38,14 @@ export type Database = {
           created_at?: string
           id?: string
           image_url: string
+          last_worn_at?: string | null
           name: string
           price?: number | null
           purchase_date?: string | null
           tags?: string[] | null
           updated_at?: string
           user_id: string
+          wear_count?: number
         }
         Update: {
           brand?: string | null
@@ -50,17 +54,20 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string
+          last_worn_at?: string | null
           name?: string
           price?: number | null
           purchase_date?: string | null
           tags?: string[] | null
           updated_at?: string
           user_id?: string
+          wear_count?: number
         }
         Relationships: []
       }
       outfits: {
         Row: {
+          color_palette: string[] | null
           created_at: string
           event_name: string | null
           id: string
@@ -69,11 +76,14 @@ export type Database = {
           name: string
           notes: string | null
           occasion: string | null
+          silhouette: string | null
+          similarity_hash: string | null
           updated_at: string
           user_id: string
           worn_at: string | null
         }
         Insert: {
+          color_palette?: string[] | null
           created_at?: string
           event_name?: string | null
           id?: string
@@ -82,11 +92,14 @@ export type Database = {
           name: string
           notes?: string | null
           occasion?: string | null
+          silhouette?: string | null
+          similarity_hash?: string | null
           updated_at?: string
           user_id: string
           worn_at?: string | null
         }
         Update: {
+          color_palette?: string[] | null
           created_at?: string
           event_name?: string | null
           id?: string
@@ -95,6 +108,8 @@ export type Database = {
           name?: string
           notes?: string | null
           occasion?: string | null
+          silhouette?: string | null
+          similarity_hash?: string | null
           updated_at?: string
           user_id?: string
           worn_at?: string | null
