@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, User, Sparkles } from 'lucide-react';
+import { Send, User, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useClothingItems } from '@/hooks/useClothingItems';
+import { useToast } from '@/hooks/use-toast';
 
 interface Message {
   id: string;
@@ -11,47 +15,140 @@ interface Message {
   content: string;
 }
 
+interface RecentOutfit {
+  name: string;
+  occasion: string | null;
+  worn_at: string;
+  items: { name: string; category: string }[];
+}
+
 export default function Stylist() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { items: wardrobeItems } = useClothingItems('all');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: "Hello! I'm Aura, your personal style advisor. How can I help you today? You can ask me about outfit ideas, styling tips, or what to wear for specific occasions.",
+      content: "Hello! I'm Aura, your personal style advisor. I can see your wardrobe and know what you've worn recently, so I'll suggest fresh outfit combinations you haven't tried lately. How can I help you today?",
     },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [recentOutfits, setRecentOutfits] = useState<RecentOutfit[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const quickPrompts = [
-    'Outfit for a dinner date',
+    'Suggest a new outfit',
+    'What should I wear today?',
     'Office appropriate looks',
-    'Weekend brunch style',
-    'What colors suit me?',
+    'Date night ideas',
   ];
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
+  // Load recent outfits for context
+  useEffect(() => {
+    if (!user) return;
+
+    const loadRecentOutfits = async () => {
+      const { data: outfits } = await supabase
+        .from('outfits')
+        .select('name, occasion, worn_at, item_ids')
+        .eq('user_id', user.id)
+        .not('worn_at', 'is', null)
+        .order('worn_at', { ascending: false })
+        .limit(10);
+
+      if (outfits && outfits.length > 0) {
+        // Get clothing items for each outfit
+        const outfitsWithItems = outfits.map(outfit => {
+          const items = outfit.item_ids
+            .map((id: string) => wardrobeItems.find(item => item.id === id))
+            .filter(Boolean)
+            .map((item: any) => ({ name: item.name, category: item.category }));
+
+          return {
+            name: outfit.name,
+            occasion: outfit.occasion,
+            worn_at: outfit.worn_at!,
+            items,
+          };
+        });
+
+        setRecentOutfits(outfitsWithItems);
+      }
+    };
+
+    if (wardrobeItems.length > 0) {
+      loadRecentOutfits();
+    }
+  }, [user, wardrobeItems]);
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async (messageText?: string) => {
+    const text = messageText || input;
+    if (!text.trim() || loading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: text,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
 
-    // TODO: Implement actual AI chat with Lovable AI
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.functions.invoke('stylist-chat', {
+        body: {
+          message: text,
+          wardrobeItems: wardrobeItems.map(item => ({
+            name: item.name,
+            category: item.category,
+            color: item.color,
+            brand: item.brand,
+          })),
+          recentOutfits,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "I'd love to help you with that! Based on your wardrobe, I can suggest some great outfit combinations. Let me think about the best options for you...",
+        content: data.reply,
       };
-      setMessages((prev) => [...prev, aiMessage]);
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (error: any) {
+      console.error('Error calling stylist:', error);
+      
+      let errorMessage = "I'm having trouble thinking right now. Please try again in a moment.";
+      if (error.message?.includes('Rate limit')) {
+        errorMessage = "I'm a bit overwhelmed with requests. Please wait a moment and try again.";
+      } else if (error.message?.includes('credits')) {
+        errorMessage = "It seems we've run out of AI credits. Please check your account.";
+      }
+
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
+      
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: errorMessage,
+      };
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -89,7 +186,7 @@ export default function Stylist() {
                     : 'bg-muted'
                 )}
               >
-                <p className="text-sm">{message.content}</p>
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
               </div>
             </div>
           ))}
@@ -108,6 +205,7 @@ export default function Stylist() {
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Quick prompts */}
@@ -117,7 +215,7 @@ export default function Stylist() {
               {quickPrompts.map((prompt) => (
                 <button
                   key={prompt}
-                  onClick={() => setInput(prompt)}
+                  onClick={() => handleSend(prompt)}
                   className="px-3 py-1.5 rounded-full text-sm bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
                 >
                   {prompt}
@@ -141,9 +239,14 @@ export default function Stylist() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask Aura anything..."
               className="flex-1"
+              disabled={loading}
             />
             <Button type="submit" size="icon" disabled={!input.trim() || loading}>
-              <Send className="h-4 w-4" />
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </Button>
           </form>
         </div>
