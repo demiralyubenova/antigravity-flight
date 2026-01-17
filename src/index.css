@@ -1,8 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* The Atelier - Elegant AI Wardrobe Design System */
+/* Elegant AI Wardrobe Design System */
 
 @layer base {
   :root {
@@ -111,19 +113,33 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium tracking-tight;
   }
 }
 
-/* Typography refinements */
 @layer utilities {
   .font-display {
-    font-family: 'Times New Roman', 'Georgia', serif;
-    letter-spacing: 0.02em;
+    font-family: 'Playfair Display', Georgia, serif;
+    letter-spacing: -0.01em;
+  }
+
+  .font-body {
+    font-family: 'Inter', system-ui, sans-serif;
   }
 
   .text-balance {
     text-wrap: balance;
+  }
+
+  .tracking-tight {
+    letter-spacing: -0.025em;
   }
 
   /* Elegant shadows */
