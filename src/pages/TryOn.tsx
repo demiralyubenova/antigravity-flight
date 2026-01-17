@@ -307,7 +307,7 @@ export default function TryOn() {
       <div className="grid lg:grid-cols-2 gap-6 pb-24">
         {/* Left: Person Photo Upload */}
         <div className="space-y-4">
-          <h3 className="font-display text-lg font-medium">Your Photo</h3>
+          <h3 className="font-display text-lg font-medium tracking-tight">Your Photo</h3>
           
           {personImage ? (
             <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-2xl overflow-hidden bg-muted">
@@ -375,7 +375,7 @@ export default function TryOn() {
                 <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <Camera className="h-8 w-8 text-primary" />
                 </div>
-                <h4 className="font-medium mb-1">Upload Your Photo</h4>
+                <h4 className="font-display font-medium mb-1">Upload Your Photo</h4>
                 <p className="text-sm text-muted-foreground mb-4">Take or upload a full-body photo</p>
                 <Button
                   type="button"
@@ -405,7 +405,7 @@ export default function TryOn() {
 
         {/* Right: Select Clothing */}
         <div className="space-y-4">
-          <h3 className="font-display text-lg font-medium">Select Clothing</h3>
+          <h3 className="font-display text-lg font-medium tracking-tight">Select Clothing</h3>
           
           {items.length === 0 ? (
             <div className="aspect-[3/4] max-w-sm mx-auto rounded-2xl border border-border bg-muted/30 flex items-center justify-center">
