@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.analyze-clothing]
 verify_jwt = false
+
+[functions.stylist-chat]
+verify_jwt = false
