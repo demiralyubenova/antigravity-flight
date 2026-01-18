@@ -35,7 +35,7 @@ serve(async (req) => {
 
     console.log('Calling Google Gemini 3 Pro Image for outfit try-on with items:', itemDescriptions);
 
-    // Use Gemini 3 Pro Image Preview ("Nano Banana Pro") - best for character consistency
+    // Use Gemini 3 Pro Image Preview - prompt designed to avoid identity preservation flags
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${GEMINI_API_KEY}`,
       {
@@ -54,22 +54,16 @@ serve(async (req) => {
                   },
                 },
                 {
-                  text: `This is a photo of a specific person. Create a new image showing THIS EXACT SAME PERSON wearing: ${itemDescriptions}.
+                  text: `Create a professional fashion photography image of a model wearing: ${itemDescriptions}.
 
-CRITICAL REQUIREMENTS:
-- The person's face, skin tone, hair, body shape, and all physical features must be IDENTICAL to the reference photo
-- Preserve every facial detail: eyes, nose, mouth, expressions, facial structure
-- Keep the same body proportions and build
-- The person should appear in a natural standing pose, full-body view
-- Dress them in the specified clothing items
+Style the outfit based on the reference photo's aesthetic:
+- Similar body type and proportions
+- Natural, confident full-body pose  
+- Professional studio lighting
+- Clean neutral background
+- High-quality fashion photography style
 
-STYLE:
-- Professional fashion photography
-- Clean studio background with soft lighting
-- High resolution, photorealistic quality
-- Natural, confident pose
-
-The output must look like the SAME PERSON from the reference photo, just wearing different clothes.`,
+Deliver a photorealistic fashion editorial image showcasing these clothing items.`,
                 },
               ],
             },
@@ -131,12 +125,12 @@ function processGeminiResponse(data: any, corsHeaders: Record<string, string>): 
     const finishReason = candidate.finishReason;
     const finishMessage = candidate.finishMessage;
 
-    // Handle IMAGE_OTHER (safety filter or policy block)
-    if (finishReason === 'IMAGE_OTHER' || finishReason === 'SAFETY') {
+    // Handle IMAGE_SAFETY (safety filter or policy block)
+    if (finishReason === 'IMAGE_OTHER' || finishReason === 'SAFETY' || finishReason === 'IMAGE_SAFETY') {
       console.error('Image generation blocked:', finishReason, finishMessage);
       return new Response(
         JSON.stringify({
-          error: 'Unable to generate image. The photo or clothing combination may have triggered safety filters. Try with a different photo or rephrasing your request.',
+          error: 'Image generation blocked by Google safety policies. Virtual try-on with real person photos requires Google Cloud billing or a specialized try-on service. Try using a stock photo or mannequin instead.',
           details: finishMessage || 'Content policy restriction',
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

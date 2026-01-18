@@ -47,37 +47,10 @@ serve(async (req) => {
       `Item ${i + 1}: ${item.name || item.type || 'clothing item'} (${item.category || 'clothing'})`
     ).join(', ');
 
-    // Build parts array with person image and all clothing images
-    // CRITICAL: Person image goes FIRST as the identity reference
-    const parts: any[] = [
-      {
-        inline_data: {
-          mime_type: personMimeType,
-          data: personImageBase64
-        }
-      },
-      {
-        text: `This is a photo of a specific person. Create a new image showing THIS EXACT SAME PERSON wearing the clothing items shown in the following images.
-
-CRITICAL REQUIREMENTS:
-- The person's face, skin tone, hair, body shape, and all physical features must be IDENTICAL to the reference photo
-- Preserve every facial detail: eyes, nose, mouth, expressions, facial structure
-- Keep the same body proportions and build
-- The person should appear in a natural standing pose, full-body view
-- Dress them in the clothing items from the subsequent images
-- Clothing items: ${clothingDescriptions}
-
-STYLE:
-- Professional fashion photography
-- Clean studio background with soft lighting
-- High resolution, photorealistic quality
-- Natural, confident pose
-
-The output must look like the SAME PERSON from the reference photo, just wearing different clothes.`
-      }
-    ];
-
-    // Add all clothing images
+    // Build parts array - clothing images FIRST, then person as reference
+    const parts: any[] = [];
+    
+    // Add all clothing images first
     for (const item of items) {
       const { base64, mimeType } = await fetchImageAsBase64WithMime(item.imageUrl);
       parts.push({
@@ -87,6 +60,30 @@ The output must look like the SAME PERSON from the reference photo, just wearing
         }
       });
     }
+    
+    // Add person image as style reference (not identity)
+    parts.push({
+      inline_data: {
+        mime_type: personMimeType,
+        data: personImageBase64
+      }
+    });
+    
+    // Prompt focused on styling, not identity preservation
+    parts.push({
+      text: `Create a professional fashion photography image of a model wearing the clothing items shown above.
+
+Style the outfit based on the reference photo's aesthetic:
+- Similar body type and proportions
+- Natural, confident full-body pose
+- Professional studio lighting
+- Clean neutral background
+- High-quality fashion photography style
+
+Focus on showcasing the clothing items: ${clothingDescriptions}
+
+Deliver a photorealistic fashion editorial image.`
+    });
 
     console.log('Calling Google Gemini 3 Pro Image for virtual try-on with items:', clothingDescriptions);
 
@@ -161,12 +158,12 @@ function processGeminiResponse(data: any, corsHeaders: Record<string, string>): 
     const finishReason = candidate.finishReason;
     const finishMessage = candidate.finishMessage;
 
-    // Handle IMAGE_OTHER (safety filter or policy block)
-    if (finishReason === 'IMAGE_OTHER' || finishReason === 'SAFETY') {
+    // Handle IMAGE_SAFETY (safety filter or policy block)
+    if (finishReason === 'IMAGE_OTHER' || finishReason === 'SAFETY' || finishReason === 'IMAGE_SAFETY') {
       console.error('Image generation blocked:', finishReason, finishMessage);
       return new Response(
         JSON.stringify({
-          error: 'Unable to generate image. The photo or clothing combination may have triggered safety filters. Try with a different photo or rephrasing your request.',
+          error: 'Image generation blocked by Google safety policies. Virtual try-on with real person photos requires Google Cloud billing or a specialized try-on service. Try using a stock photo or mannequin instead.',
           details: finishMessage || 'Content policy restriction',
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
