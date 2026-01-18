@@ -48,20 +48,17 @@ serve(async (req) => {
             {
               parts: [
                 {
-                  text: `Create a professional fashion photography image showing this person wearing a complete outfit consisting of: ${itemDescriptions}.
+                  text: `Generate a high-quality fashion photography image based on this reference photo. The model should wear: ${itemDescriptions}.
 
-The person should:
-- Maintain their exact appearance (face, body type, skin tone, hair, facial features)
-- Be shown in a natural, confident pose
-- Be photographed full-body with studio lighting
+Requirements:
+- Use the reference photo as inspiration for body type, pose, and setting
+- Create professional full-body fashion photography
+- Show the clothing items styled together naturally
+- Use studio lighting with a clean neutral background
+- Maintain a confident, natural pose
+- Photorealistic quality
 
-The outfit should:
-- Fit the person naturally and realistically
-- The clothing items should complement each other beautifully
-- Look like high-quality, well-styled fashion pieces
-
-Background: Clean, neutral studio background with soft shadows.
-Style: High-quality fashion editorial photography, photorealistic.`,
+Style: Editorial fashion photography`,
                 },
                 {
                   inline_data: {
@@ -122,10 +119,27 @@ Style: High-quality fashion editorial photography, photorealistic.`,
 function processGeminiResponse(data: any, corsHeaders: Record<string, string>): Response {
   console.log('Gemini response received');
 
-  // Extract the generated image from the response
+  // Check for safety/policy blocks first
   const candidates = data.candidates;
   if (candidates && candidates.length > 0) {
-    const content = candidates[0].content;
+    const candidate = candidates[0];
+    const finishReason = candidate.finishReason;
+    const finishMessage = candidate.finishMessage;
+
+    // Handle IMAGE_OTHER (safety filter or policy block)
+    if (finishReason === 'IMAGE_OTHER' || finishReason === 'SAFETY') {
+      console.error('Image generation blocked:', finishReason, finishMessage);
+      return new Response(
+        JSON.stringify({
+          error: 'Unable to generate image. The photo or clothing combination may have triggered safety filters. Try with a different photo or rephrasing your request.',
+          details: finishMessage || 'Content policy restriction',
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Extract the generated image from the response
+    const content = candidate.content;
     if (content && content.parts) {
       for (const part of content.parts) {
         const inline = part.inline_data ?? part.inlineData;
@@ -145,7 +159,7 @@ function processGeminiResponse(data: any, corsHeaders: Record<string, string>): 
   }
 
   console.error('No image in response:', JSON.stringify(data));
-  throw new Error('No try-on image generated. Image generation may not be available for this model.');
+  throw new Error('No try-on image generated. Please try with a different photo.');
 }
 
 async function fetchImageAsBase64WithMime(url: string): Promise<{ base64: string; mimeType: string }> {
