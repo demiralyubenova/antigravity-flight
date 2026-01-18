@@ -91,12 +91,12 @@ export default function TryOn() {
     setSelectedSavedResult(null);
   };
 
-  // Load saved avatar and try-on history on mount
+  // Load saved avatar, persisted photo, and try-on history on mount
   useEffect(() => {
     if (!user) return;
     
     const loadData = async () => {
-      // Load avatar
+      // Load avatar from profile
       const { data: profile } = await supabase
         .from('profiles')
         .select('avatar_url')
@@ -105,6 +105,13 @@ export default function TryOn() {
       
       if (profile?.avatar_url) {
         setSavedAvatarUrl(profile.avatar_url);
+      }
+
+      // Check localStorage for persisted photo first (survives tab switches)
+      const persistedPhoto = localStorage.getItem(`tryon_photo_${user.id}`);
+      if (persistedPhoto) {
+        setPersonImage(persistedPhoto);
+      } else if (profile?.avatar_url) {
         setPersonImage(profile.avatar_url);
       }
 
@@ -123,6 +130,16 @@ export default function TryOn() {
     
     loadData();
   }, [user]);
+
+  // Persist photo to localStorage when it changes (so it survives tab switches)
+  useEffect(() => {
+    if (!user) return;
+    
+    if (personImage && personImage.startsWith('data:')) {
+      // Only persist base64 images (uploaded photos), not URLs
+      localStorage.setItem(`tryon_photo_${user.id}`, personImage);
+    }
+  }, [personImage, user]);
 
   const openFilePicker = () => {
     fileInputRef.current?.click();
@@ -179,6 +196,9 @@ export default function TryOn() {
       if (profileError) throw profileError;
 
       setSavedAvatarUrl(publicUrl);
+      setPersonImage(publicUrl);
+      // Clear localStorage since we now have a saved avatar
+      localStorage.removeItem(`tryon_photo_${user.id}`);
       toast({ title: 'Photo saved!', description: 'This will be your default try-on photo' });
     } catch (error) {
       console.error('Error saving avatar:', error);
@@ -314,6 +334,10 @@ export default function TryOn() {
     setPersonImage(savedAvatarUrl);
     setTryOnResult(null);
     setSelectedSavedResult(null);
+    // Clear localStorage when reverting to saved avatar
+    if (user) {
+      localStorage.removeItem(`tryon_photo_${user.id}`);
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -428,24 +452,6 @@ export default function TryOn() {
                   </div>
                 )}
 
-                {isNewPhoto && !tryOnResult && !processing && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="w-full max-w-xs mx-auto mt-4 gap-2"
-                    onClick={saveAsAvatar}
-                    disabled={savingAvatar}
-                  >
-                    {savingAvatar ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    {savingAvatar ? 'Saving...' : 'Save as my default photo'}
-                  </Button>
-                )}
-              </div>
-            ) : (
                 {isNewPhoto && !tryOnResult && !processing && (
                   <Button
                     variant="secondary"
