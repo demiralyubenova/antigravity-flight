@@ -33,11 +33,11 @@ serve(async (req) => {
       `${item.name} (${item.category})`
     ).join(', ');
 
-    console.log('Generating outfit try-on with items:', itemDescriptions);
+    console.log('Calling Google Gemini 3 Pro Image for outfit try-on with items:', itemDescriptions);
 
-    // Use Gemini 2.5 Flash Image ("Nano Banana") for image generation
+    // Use Gemini 3 Pro Image Preview ("Nano Banana Pro") - best for character consistency
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -48,23 +48,28 @@ serve(async (req) => {
             {
               parts: [
                 {
-                  text: `Generate a high-quality fashion photography image based on this reference photo. The model should wear: ${itemDescriptions}.
-
-Requirements:
-- Use the reference photo as inspiration for body type, pose, and setting
-- Create professional full-body fashion photography
-- Show the clothing items styled together naturally
-- Use studio lighting with a clean neutral background
-- Maintain a confident, natural pose
-- Photorealistic quality
-
-Style: Editorial fashion photography`,
-                },
-                {
                   inline_data: {
                     mime_type: personMimeType,
                     data: personImageBase64,
                   },
+                },
+                {
+                  text: `This is a photo of a specific person. Create a new image showing THIS EXACT SAME PERSON wearing: ${itemDescriptions}.
+
+CRITICAL REQUIREMENTS:
+- The person's face, skin tone, hair, body shape, and all physical features must be IDENTICAL to the reference photo
+- Preserve every facial detail: eyes, nose, mouth, expressions, facial structure
+- Keep the same body proportions and build
+- The person should appear in a natural standing pose, full-body view
+- Dress them in the specified clothing items
+
+STYLE:
+- Professional fashion photography
+- Clean studio background with soft lighting
+- High resolution, photorealistic quality
+- Natural, confident pose
+
+The output must look like the SAME PERSON from the reference photo, just wearing different clothes.`,
                 },
               ],
             },
@@ -91,7 +96,7 @@ Style: Editorial fashion photography`,
         return new Response(
           JSON.stringify({
             error:
-              'Image generation model "gemini-2.5-flash-image" is not available for this API key (404). Enable Gemini image generation in your Google project or use a key with access.',
+              'Image generation model "gemini-3-pro-image-preview" is not available for this API key (404). Make sure your Google Cloud project has Gemini API access enabled.',
             details: errorText,
           }),
           { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
