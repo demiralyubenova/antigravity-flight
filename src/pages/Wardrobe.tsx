@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CategoryTabs } from '@/components/wardrobe/CategoryTabs';
+import { SubcategoryTabs } from '@/components/wardrobe/SubcategoryTabs';
 import { ClothingGrid } from '@/components/wardrobe/ClothingGrid';
 import { AddItemDialog } from '@/components/wardrobe/AddItemDialog';
 import { useClothingItems } from '@/hooks/useClothingItems';
-import { ClothingCategory } from '@/types/wardrobe';
+import { ClothingCategory, ClothingSubcategory, SUBCATEGORY_OPTIONS } from '@/types/wardrobe';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +20,7 @@ import { ClothingItem } from '@/types/wardrobe';
 
 export default function Wardrobe() {
   const [activeCategory, setActiveCategory] = useState<ClothingCategory | 'all'>('all');
+  const [activeSubcategory, setActiveSubcategory] = useState<ClothingSubcategory | 'all'>('all');
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ClothingItem | null>(null);
   
@@ -27,6 +29,12 @@ export default function Wardrobe() {
   
   // Get filtered items based on active category
   const { items, isLoading, addItem, deleteItem } = useClothingItems(activeCategory);
+
+  // Filter by subcategory if one is selected
+  const filteredItems = useMemo(() => {
+    if (activeSubcategory === 'all') return items;
+    return items.filter(item => item.subcategory === activeSubcategory);
+  }, [items, activeSubcategory]);
 
   // Calculate item counts for each category
   const itemCounts = useMemo(() => {
@@ -46,6 +54,30 @@ export default function Wardrobe() {
     
     return counts;
   }, [allItems]);
+
+  // Calculate subcategory counts for the active category
+  const subcategoryCounts = useMemo(() => {
+    if (activeCategory === 'all') return {};
+    
+    const counts: Record<ClothingSubcategory | 'all', number> = { all: items.length } as any;
+    
+    SUBCATEGORY_OPTIONS[activeCategory].forEach(sub => {
+      counts[sub.value] = 0;
+    });
+    
+    items.forEach((item) => {
+      if (item.subcategory && counts[item.subcategory] !== undefined) {
+        counts[item.subcategory]++;
+      }
+    });
+    
+    return counts;
+  }, [items, activeCategory]);
+
+  const handleCategoryChange = (category: ClothingCategory | 'all') => {
+    setActiveCategory(category);
+    setActiveSubcategory('all'); // Reset subcategory when category changes
+  };
 
   const handleAddItem = (item: {
     name: string;
@@ -72,12 +104,21 @@ export default function Wardrobe() {
     <AppLayout title="My Wardrobe" subtitle="Your digital closet">
       <CategoryTabs
         activeCategory={activeCategory}
-        onCategoryChange={setActiveCategory}
+        onCategoryChange={handleCategoryChange}
         itemCounts={itemCounts}
       />
 
+      {activeCategory !== 'all' && (
+        <SubcategoryTabs
+          category={activeCategory}
+          activeSubcategory={activeSubcategory}
+          onSubcategoryChange={setActiveSubcategory}
+          itemCounts={subcategoryCounts}
+        />
+      )}
+
       <ClothingGrid
-        items={items}
+        items={filteredItems}
         onItemDelete={handleDeleteItem}
         onAddClick={() => setAddDialogOpen(true)}
         isLoading={isLoading}
