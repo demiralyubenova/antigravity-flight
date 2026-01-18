@@ -384,10 +384,11 @@ export default function TryOn() {
             
             {personImage ? (
               <div className="relative">
+                {/* Person photo stays visible */}
                 <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-2xl overflow-hidden bg-muted border border-border">
                   <img
-                    src={tryOnResult || personImage}
-                    alt="Your photo"
+                    src={personImage}
+                    alt="Your uploaded photo"
                     className="w-full h-full object-cover"
                   />
                   {!processing && (
@@ -409,14 +410,42 @@ export default function TryOn() {
                     </div>
                   )}
                 </div>
-                
+
+                {/* Result shown separately so photo doesn't get replaced */}
                 {tryOnResult && (
-                  <div className="flex items-center justify-center gap-2 mt-3 text-primary">
-                    <Sparkles className="h-4 w-4" />
-                    <span className="text-sm font-medium">Virtual Try-On Result</span>
+                  <div className="mt-4">
+                    <div className="flex items-center justify-center gap-2 mb-3 text-primary">
+                      <Sparkles className="h-4 w-4" />
+                      <span className="text-sm font-medium">Virtual Try-On Result</span>
+                    </div>
+                    <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-2xl overflow-hidden bg-muted border border-border">
+                      <img
+                        src={tryOnResult}
+                        alt="Virtual try-on result"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                   </div>
                 )}
-                
+
+                {isNewPhoto && !tryOnResult && !processing && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full max-w-xs mx-auto mt-4 gap-2"
+                    onClick={saveAsAvatar}
+                    disabled={savingAvatar}
+                  >
+                    {savingAvatar ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    {savingAvatar ? 'Saving...' : 'Save as my default photo'}
+                  </Button>
+                )}
+              </div>
+            ) : (
                 {isNewPhoto && !tryOnResult && !processing && (
                   <Button
                     variant="secondary"
