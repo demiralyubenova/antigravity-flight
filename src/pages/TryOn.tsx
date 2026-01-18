@@ -1,13 +1,14 @@
-import { useState, useRef, useEffect, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, useMemo, type ChangeEvent } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Camera, Upload, Sparkles, X, Loader2, Save, History, Trash2, ChevronRight } from 'lucide-react';
+import { Camera, Upload, Sparkles, X, Loader2, Save, History, Trash2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { ClothingItem, CATEGORY_LABELS } from '@/types/wardrobe';
+import { ClothingItem, ClothingCategory, ClothingSubcategory, CATEGORY_LABELS, ALL_CATEGORIES, SUBCATEGORY_OPTIONS } from '@/types/wardrobe';
 import { cn } from '@/lib/utils';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
@@ -31,6 +32,44 @@ export default function TryOn() {
   const [savedResults, setSavedResults] = useState<TryOnResult[]>([]);
   const [selectedSavedResult, setSelectedSavedResult] = useState<TryOnResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Filtering state
+  const [activeCategory, setActiveCategory] = useState<ClothingCategory | 'all'>('all');
+  const [activeSubcategory, setActiveSubcategory] = useState<ClothingSubcategory | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter items based on category, subcategory, and search
+  const filteredItems = useMemo(() => {
+    let result = items;
+    
+    // Filter by category
+    if (activeCategory !== 'all') {
+      result = result.filter(item => item.category === activeCategory);
+    }
+    
+    // Filter by subcategory
+    if (activeSubcategory !== 'all') {
+      result = result.filter(item => item.subcategory === activeSubcategory);
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(item => 
+        item.name.toLowerCase().includes(query) ||
+        item.color?.toLowerCase().includes(query) ||
+        item.brand?.toLowerCase().includes(query)
+      );
+    }
+    
+    return result;
+  }, [items, activeCategory, activeSubcategory, searchQuery]);
+
+  // Reset subcategory when category changes
+  const handleCategoryChange = (category: ClothingCategory | 'all') => {
+    setActiveCategory(category);
+    setActiveSubcategory('all');
+  };
 
   // Load saved avatar and try-on history on mount
   useEffect(() => {
@@ -426,6 +465,83 @@ export default function TryOn() {
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Search bar */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search clothes..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                {/* Category tabs */}
+                <ScrollArea className="w-full whitespace-nowrap">
+                  <div className="flex gap-2 pb-2">
+                    <button
+                      onClick={() => handleCategoryChange('all')}
+                      className={cn(
+                        'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap',
+                        activeCategory === 'all'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                      )}
+                    >
+                      All
+                    </button>
+                    {ALL_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => handleCategoryChange(cat)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap',
+                          activeCategory === cat
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                        )}
+                      >
+                        {CATEGORY_LABELS[cat]}
+                      </button>
+                    ))}
+                  </div>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
+
+                {/* Subcategory tabs */}
+                {activeCategory !== 'all' && (
+                  <ScrollArea className="w-full whitespace-nowrap">
+                    <div className="flex gap-1.5 pb-2">
+                      <button
+                        onClick={() => setActiveSubcategory('all')}
+                        className={cn(
+                          'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap',
+                          activeSubcategory === 'all'
+                            ? 'bg-primary/20 text-primary'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        )}
+                      >
+                        All
+                      </button>
+                      {SUBCATEGORY_OPTIONS[activeCategory].map((sub) => (
+                        <button
+                          key={sub.value}
+                          onClick={() => setActiveSubcategory(sub.value)}
+                          className={cn(
+                            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap',
+                            activeSubcategory === sub.value
+                              ? 'bg-primary/20 text-primary'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          )}
+                        >
+                          {sub.label}
+                        </button>
+                      ))}
+                    </div>
+                    <ScrollBar orientation="horizontal" />
+                  </ScrollArea>
+                )}
+
                 {/* Selected item preview */}
                 {selectedItem && (
                   <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-2xl overflow-hidden bg-muted border-2 border-primary">
@@ -445,9 +561,13 @@ export default function TryOn() {
 
                 {/* Clothing grid */}
                 <div>
-                  <p className="text-sm text-muted-foreground mb-3">Choose an item from your wardrobe</p>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {filteredItems.length === 0 
+                      ? 'No items found' 
+                      : `Choose from ${filteredItems.length} item${filteredItems.length !== 1 ? 's' : ''}`}
+                  </p>
                   <div className="grid grid-cols-4 gap-3">
-                    {items.slice(0, 8).map((item) => (
+                    {filteredItems.map((item) => (
                       <button
                         key={item.id}
                         onClick={() => {
@@ -471,13 +591,6 @@ export default function TryOn() {
                     ))}
                   </div>
                 </div>
-
-                {items.length > 8 && (
-                  <Button variant="ghost" size="sm" className="w-full text-muted-foreground">
-                    View all {items.length} items
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
-                )}
               </div>
             )}
           </CardContent>
