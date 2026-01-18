@@ -134,30 +134,18 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
     const normalizedBase64 = await normalizeImageOrientation(file);
     setImagePreview(normalizedBase64); // Show normalized image immediately
     
-    // Run background removal and AI analysis in parallel
-    toast({ title: 'Processing image...', description: 'Removing background & analyzing item' });
+    // Only run AI analysis (skip background removal since Imagen is not available)
+    toast({ title: 'Processing image...', description: 'Analyzing clothing item' });
     
-    const [bgResult] = await Promise.all([
-      removeBackground(normalizedBase64),
-      analyzeClothing(normalizedBase64), // Auto-fill form fields
-    ]);
+    await analyzeClothing(normalizedBase64); // Auto-fill form fields
     
-    if (bgResult) {
-      setImagePreview(bgResult.processedUrl);
-      setImageFile(bgResult.file);
-      toast({ title: 'Image processed!', description: 'Background removed & details detected' });
-    } else {
-      // If background removal fails, keep normalized image
-      const response = await fetch(normalizedBase64);
-      const blob = await response.blob();
-      const normalizedFile = new File([blob], file.name, { type: 'image/jpeg' });
-      setImageFile(normalizedFile);
-      toast({ 
-        title: 'Could not remove background', 
-        description: 'Using original image instead',
-        variant: 'destructive' 
-      });
-    }
+    // Keep the original normalized image
+    const response = await fetch(normalizedBase64);
+    const blob = await response.blob();
+    const normalizedFile = new File([blob], file.name, { type: 'image/jpeg' });
+    setImageFile(normalizedFile);
+    
+    toast({ title: 'Image ready!', description: 'Details auto-filled from image' });
     setProcessingImage(false);
   };
 
@@ -234,7 +222,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
                     <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
                       <div className="text-center space-y-2">
                         <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                        <p className="text-xs font-medium">Removing background...</p>
+                        <p className="text-xs font-medium">Analyzing image...</p>
                       </div>
                     </div>
                   )}
@@ -253,7 +241,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
                 {!processingImage && imageFile && (
                   <div className="flex items-center gap-1.5 text-xs text-primary">
                     <Sparkles className="h-3 w-3" />
-                    <span>Background removed automatically</span>
+                    <span>Details detected automatically</span>
                   </div>
                 )}
               </div>
@@ -261,7 +249,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
               <label className="flex flex-col items-center justify-center h-32 mt-2 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
                 <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                 <span className="text-sm text-muted-foreground">Click to upload</span>
-                <span className="text-xs text-muted-foreground mt-1">Background will be removed automatically</span>
+                <span className="text-xs text-muted-foreground mt-1">AI will detect item details automatically</span>
                 <input
                   type="file"
                   accept="image/*"
