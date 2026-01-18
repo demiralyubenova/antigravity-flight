@@ -18,94 +18,55 @@ serve(async (req) => {
       throw new Error('Image URL is required');
     }
 
-    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
-    if (!GOOGLE_API_KEY) {
-      throw new Error('GOOGLE_API_KEY is not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    console.log('Removing background from image...');
+    console.log('Removing background from image using Lovable AI...');
 
-    // Fetch image as base64
-    const imageBase64 = await fetchImageAsBase64(imageUrl);
-
-    // Use Gemini to describe and recreate the clothing item with white background
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
+    // Use Lovable AI gateway with Gemini image editing model
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [
+        model: 'google/gemini-2.5-flash-image-preview',
+        messages: [
           {
-            parts: [
+            role: 'user',
+            content: [
               {
-                text: 'Analyze this clothing item in detail. Describe the exact item including: type of clothing, color, pattern, style, brand if visible, and any distinctive features. Be very specific and detailed so the image can be recreated accurately.',
+                type: 'text',
+                text: 'Remove the background from this clothing item image completely. Make the background pure white (#FFFFFF). Keep only the clothing item itself with clean edges. The result should look like a professional e-commerce product photo with a clean white background.'
               },
               {
-                inlineData: {
-                  mimeType: 'image/jpeg',
-                  data: imageBase64,
-                },
-              },
-            ],
-          },
+                type: 'image_url',
+                image_url: {
+                  url: imageUrl
+                }
+              }
+            ]
+          }
         ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 500,
-        },
+        modalities: ['image', 'text']
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Google API error:', errorText);
-      throw new Error(`Google API error: ${response.status}`);
+      console.error('Lovable AI API error:', errorText);
+      throw new Error(`Lovable AI API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const description = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    console.log('Lovable AI response received');
 
-    if (!description) {
-      throw new Error('Failed to analyze image');
-    }
+    // Extract the generated image from the response
+    const generatedImage = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
-    console.log('Image analyzed, generating clean version...');
-
-    // Use Imagen to generate a clean product photo
-    const imagenResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GOOGLE_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        instances: [
-          {
-            prompt: `Professional product photography of ${description}. Clean white background, studio lighting, high quality e-commerce style photo. The clothing item is displayed flat or on invisible mannequin. No models, no shadows, pure white background.`,
-          },
-        ],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: '1:1',
-        },
-      }),
-    });
-
-    if (!imagenResponse.ok) {
-      const errorText = await imagenResponse.text();
-      console.error('Imagen API error:', errorText);
-      
-      // Fallback: return original image if Imagen is not available
-      console.log('Imagen not available, returning original image');
-      return new Response(
-        JSON.stringify({ processedImageUrl: imageUrl, fallback: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const imagenData = await imagenResponse.json();
-    const generatedImage = imagenData.predictions?.[0]?.bytesBase64Encoded;
-    
     if (!generatedImage) {
       console.log('No image generated, returning original');
       return new Response(
@@ -114,10 +75,10 @@ serve(async (req) => {
       );
     }
 
-    const processedImageUrl = `data:image/png;base64,${generatedImage}`;
+    console.log('Background removed successfully');
 
     return new Response(
-      JSON.stringify({ processedImageUrl }),
+      JSON.stringify({ processedImageUrl: generatedImage }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
@@ -129,17 +90,3 @@ serve(async (req) => {
     );
   }
 });
-
-async function fetchImageAsBase64(url: string): Promise<string> {
-  if (url.startsWith('data:')) {
-    return url.split(',')[1];
-  }
-  const response = await fetch(url);
-  const arrayBuffer = await response.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
