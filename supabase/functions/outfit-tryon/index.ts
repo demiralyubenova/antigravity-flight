@@ -23,95 +23,76 @@ serve(async (req) => {
       throw new Error('GOOGLE_API_KEY is not configured');
     }
 
-    // Build the prompt with all clothing items
-    const itemDescriptions = clothingItems.map((item: any, index: number) => 
-      `Item ${index + 1}: ${item.name} (${item.category})`
-    ).join(', ');
+    console.log('Creating outfit try-on with', clothingItems.length, 'items');
 
-    console.log('Creating outfit try-on with items:', itemDescriptions);
-
-    const prompt = `You are a virtual try-on assistant. Dress the person in the first image with ALL the clothing items shown in the subsequent images. 
-
-The outfit consists of: ${itemDescriptions}
-
-Create a photorealistic result where:
-1. The person's face, pose, and body proportions are preserved exactly
-2. ALL clothing items are applied together as a complete outfit
-3. Items are layered correctly (e.g., jacket over shirt)
-4. Shadows and highlights match the original photo's lighting
-5. The result looks like an actual photo of the person wearing the complete outfit
-
-Generate the final image.`;
-
-    // Build content array with person image and all clothing images
-    const parts: any[] = [{ text: prompt }];
-    
-    // Add person image
+    // Analyze the person image
     const personImageBase64 = await fetchImageAsBase64(personImageUrl);
-    parts.push({
-      inlineData: {
-        mimeType: 'image/jpeg',
-        data: personImageBase64,
-      },
+    
+    const personAnalysis = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: 'Describe this person in detail for a fashion context: their pose, body type, skin tone, hair style and color, facial features, and overall appearance. Be specific so an image can be accurately recreated.' },
+            { inlineData: { mimeType: 'image/jpeg', data: personImageBase64 } },
+          ],
+        }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 500 },
+      }),
     });
 
-    // Add each clothing item image
-    for (const item of clothingItems) {
-      const clothingImageBase64 = await fetchImageAsBase64(item.image_url);
-      parts.push({
-        inlineData: {
-          mimeType: 'image/jpeg',
-          data: clothingImageBase64,
-        },
-      });
+    if (!personAnalysis.ok) {
+      throw new Error('Failed to analyze person image');
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_API_KEY}`, {
+    const personData = await personAnalysis.json();
+    const personDescription = personData.candidates?.[0]?.content?.parts?.[0]?.text || 'a person';
+
+    // Build outfit description from item names
+    const itemDescriptions = clothingItems.map((item: any) => 
+      `${item.name} (${item.category})`
+    ).join(', ');
+
+    console.log('Generating outfit try-on with items:', itemDescriptions);
+
+    // Generate the try-on image using Imagen
+    const prompt = `Professional fashion photography of ${personDescription} wearing a complete outfit consisting of: ${itemDescriptions}. Full body shot, natural confident pose, studio lighting with soft shadows, clean neutral background. High quality fashion editorial style. The clothing items fit perfectly and complement each other beautifully. Photorealistic, 8k quality.`;
+
+    const imagenResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: {
-          responseModalities: ["image", "text"],
+        instances: [{ prompt }],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: '3:4',
         },
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Google API error:', errorText);
+    if (!imagenResponse.ok) {
+      const errorText = await imagenResponse.text();
+      console.error('Imagen API error:', errorText);
       
-      if (response.status === 429) {
+      if (imagenResponse.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      throw new Error(`Google API error: ${response.status}`);
+      throw new Error('Image generation not available. Please try again later.');
     }
 
-    const data = await response.json();
-    
-    // Extract the generated image
-    let tryOnImageUrl = null;
-    const parts_response = data.candidates?.[0]?.content?.parts;
-    
-    if (parts_response) {
-      for (const part of parts_response) {
-        if (part.inlineData?.data) {
-          tryOnImageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
+    const imagenData = await imagenResponse.json();
+    const generatedImage = imagenData.predictions?.[0]?.bytesBase64Encoded;
+
+    if (!generatedImage) {
+      throw new Error('No try-on image generated');
     }
 
-    if (!tryOnImageUrl) {
-      throw new Error('No try-on image returned from AI');
-    }
-
+    const tryOnImageUrl = `data:image/png;base64,${generatedImage}`;
     console.log('Outfit try-on completed successfully');
 
     return new Response(

@@ -39,96 +39,88 @@ serve(async (req) => {
 
     console.log('Starting virtual try-on with', items.length, 'items');
 
-    // Build description of all items
-    const clothingDescription = items.map((item, index) => {
-      const name = item.name || item.type || `Item ${index + 1}`;
-      const category = item.category || 'clothing';
-      return `${name} (${category})`;
-    }).join(', ');
-
-    // Build the prompt
-    const prompt = `You are a virtual try-on AI. Create a photorealistic image of the person wearing ALL of these clothing items: ${clothingDescription}.
-
-IMPORTANT INSTRUCTIONS:
-1. Keep the person's face, body shape, and pose EXACTLY as in the original photo
-2. Replace their current clothing with the provided clothing items
-3. Ensure proper fit and natural draping of the clothes on their body
-4. Maintain realistic lighting and shadows consistent with the original photo
-5. Layer items appropriately (e.g., jacket over shirt)
-6. The result should look like an actual photograph, not a collage
-
-Generate the final try-on image.`;
-
-    // Prepare the content parts with all images
-    const parts: any[] = [{ text: prompt }];
-    
-    // Add person image
+    // First, analyze the person image
     const personImageBase64 = await fetchImageAsBase64(personImageUrl);
-    parts.push({
-      inlineData: {
-        mimeType: 'image/jpeg',
-        data: personImageBase64,
-      },
+    
+    const personAnalysis = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: 'Describe this person in detail for a fashion context: their pose, body type, skin tone, hair style and color, and any visible features. Be specific so an image can be accurately recreated.' },
+            { inlineData: { mimeType: 'image/jpeg', data: personImageBase64 } },
+          ],
+        }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 500 },
+      }),
     });
 
-    // Add all clothing item images
-    for (const item of items) {
-      const clothingImageBase64 = await fetchImageAsBase64(item.imageUrl);
-      parts.push({
-        inlineData: {
-          mimeType: 'image/jpeg',
-          data: clothingImageBase64,
-        },
-      });
+    if (!personAnalysis.ok) {
+      throw new Error('Failed to analyze person image');
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_API_KEY}`, {
+    const personData = await personAnalysis.json();
+    const personDescription = personData.candidates?.[0]?.content?.parts?.[0]?.text || 'a person';
+
+    // Analyze each clothing item
+    const clothingDescriptions: string[] = [];
+    for (const item of items) {
+      const clothingBase64 = await fetchImageAsBase64(item.imageUrl);
+      
+      const clothingAnalysis = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: 'Describe this clothing item in precise detail: type, color, pattern, material, style, and any distinctive features. Be very specific.' },
+              { inlineData: { mimeType: 'image/jpeg', data: clothingBase64 } },
+            ],
+          }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 300 },
+        }),
+      });
+
+      if (clothingAnalysis.ok) {
+        const clothingData = await clothingAnalysis.json();
+        const desc = clothingData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (desc) clothingDescriptions.push(desc);
+      }
+    }
+
+    console.log('Generating try-on image with Imagen...');
+
+    // Generate the try-on image using Imagen
+    const outfitDescription = clothingDescriptions.join('. Wearing also: ');
+    const prompt = `Professional fashion photography of ${personDescription} wearing ${outfitDescription}. Full body shot, natural pose, studio lighting, clean background. High quality fashion editorial style photo. The clothing fits perfectly and looks natural on the person.`;
+
+    const imagenResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: {
-          responseModalities: ["image", "text"],
+        instances: [{ prompt }],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: '3:4',
         },
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Google API error:', errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      throw new Error(`Google API error: ${response.status}`);
+    if (!imagenResponse.ok) {
+      const errorText = await imagenResponse.text();
+      console.error('Imagen API error:', errorText);
+      throw new Error('Image generation not available. Please try again later.');
     }
 
-    const data = await response.json();
-    console.log('AI response received');
+    const imagenData = await imagenResponse.json();
+    const generatedImage = imagenData.predictions?.[0]?.bytesBase64Encoded;
 
-    // Extract the generated image
-    let tryOnImageUrl = null;
-    const parts_response = data.candidates?.[0]?.content?.parts;
-    
-    if (parts_response) {
-      for (const part of parts_response) {
-        if (part.inlineData?.data) {
-          tryOnImageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
+    if (!generatedImage) {
+      throw new Error('No try-on image generated');
     }
 
-    if (!tryOnImageUrl) {
-      throw new Error('No try-on image returned from AI');
-    }
-
+    const tryOnImageUrl = `data:image/png;base64,${generatedImage}`;
     console.log('Virtual try-on completed successfully');
 
     return new Response(

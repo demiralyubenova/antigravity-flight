@@ -28,7 +28,8 @@ serve(async (req) => {
     // Fetch image as base64
     const imageBase64 = await fetchImageAsBase64(imageUrl);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_API_KEY}`, {
+    // Use Gemini to describe and recreate the clothing item with white background
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -38,7 +39,7 @@ serve(async (req) => {
           {
             parts: [
               {
-                text: 'Remove the background from this clothing item image. Make the background completely transparent/white. Keep only the clothing item itself with clean edges. Output the result as a clean product photo with white background.',
+                text: 'Analyze this clothing item in detail. Describe the exact item including: type of clothing, color, pattern, style, brand if visible, and any distinctive features. Be very specific and detailed so the image can be recreated accurately.',
               },
               {
                 inlineData: {
@@ -50,7 +51,8 @@ serve(async (req) => {
           },
         ],
         generationConfig: {
-          responseModalities: ["image", "text"],
+          temperature: 0.1,
+          maxOutputTokens: 500,
         },
       }),
     });
@@ -62,23 +64,57 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    
-    // Extract the processed image
-    let processedImageUrl = null;
-    const parts = data.candidates?.[0]?.content?.parts;
-    
-    if (parts) {
-      for (const part of parts) {
-        if (part.inlineData?.data) {
-          processedImageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
+    const description = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!description) {
+      throw new Error('Failed to analyze image');
     }
 
-    if (!processedImageUrl) {
-      throw new Error('No processed image returned from AI');
+    console.log('Image analyzed, generating clean version...');
+
+    // Use Imagen to generate a clean product photo
+    const imagenResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GOOGLE_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        instances: [
+          {
+            prompt: `Professional product photography of ${description}. Clean white background, studio lighting, high quality e-commerce style photo. The clothing item is displayed flat or on invisible mannequin. No models, no shadows, pure white background.`,
+          },
+        ],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: '1:1',
+        },
+      }),
+    });
+
+    if (!imagenResponse.ok) {
+      const errorText = await imagenResponse.text();
+      console.error('Imagen API error:', errorText);
+      
+      // Fallback: return original image if Imagen is not available
+      console.log('Imagen not available, returning original image');
+      return new Response(
+        JSON.stringify({ processedImageUrl: imageUrl, fallback: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    const imagenData = await imagenResponse.json();
+    const generatedImage = imagenData.predictions?.[0]?.bytesBase64Encoded;
+    
+    if (!generatedImage) {
+      console.log('No image generated, returning original');
+      return new Response(
+        JSON.stringify({ processedImageUrl: imageUrl, fallback: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const processedImageUrl = `data:image/png;base64,${generatedImage}`;
 
     return new Response(
       JSON.stringify({ processedImageUrl }),
