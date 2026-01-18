@@ -18,43 +18,15 @@ serve(async (req) => {
       throw new Error('Person image and at least one clothing item are required');
     }
 
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not configured');
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
     }
 
-    console.log('Creating outfit try-on with', clothingItems.length, 'items');
+    console.log('Creating outfit try-on with', clothingItems.length, 'items using Gemini');
 
-    // Analyze the person image using GPT-4o vision
-    const personImageBase64 = await fetchImageAsBase64(personImageUrl);
-    
-    const personAnalysis = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Describe this person in detail for a fashion context: their pose, body type, skin tone, hair style and color, facial features, and overall appearance. Be specific so an image can be accurately recreated. Keep under 200 words.' },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${personImageBase64}` } }
-          ]
-        }],
-        max_tokens: 300
-      }),
-    });
-
-    if (!personAnalysis.ok) {
-      const errorText = await personAnalysis.text();
-      console.error('Person analysis failed:', errorText);
-      throw new Error('Failed to analyze person image');
-    }
-
-    const personData = await personAnalysis.json();
-    const personDescription = personData.choices?.[0]?.message?.content || 'a person';
+    // Fetch person image as base64
+    const { base64: personImageBase64, mimeType: personMimeType } = await fetchImageAsBase64WithMime(personImageUrl);
 
     // Build outfit description from item names
     const itemDescriptions = clothingItems.map((item: any) => 
@@ -63,60 +35,82 @@ serve(async (req) => {
 
     console.log('Generating outfit try-on with items:', itemDescriptions);
 
-    // Generate the try-on image using DALL-E 3
-    const prompt = `Professional fashion photography of ${personDescription.substring(0, 500)} wearing a complete outfit consisting of: ${itemDescriptions}. Full body shot, natural confident pose, studio lighting with soft shadows, clean neutral background. High quality fashion editorial style. The clothing items fit perfectly and complement each other beautifully. Photorealistic style.`;
+    // Use Gemini 2.0 Flash with image generation for outfit try-on
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              {
+                text: `Create a professional fashion photography image showing this person wearing a complete outfit consisting of: ${itemDescriptions}.
 
-    const dalleResponse = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: prompt.substring(0, 4000),
-        n: 1,
-        size: '1024x1792',
-        quality: 'standard',
-        response_format: 'b64_json'
-      }),
-    });
+The person should:
+- Maintain their exact appearance (face, body type, skin tone, hair, facial features)
+- Be shown in a natural, confident pose
+- Be photographed full-body with studio lighting
 
-    if (!dalleResponse.ok) {
-      const errorText = await dalleResponse.text();
-      console.error('DALL-E error:', errorText);
+The outfit should:
+- Fit the person naturally and realistically
+- The clothing items should complement each other beautifully
+- Look like high-quality, well-styled fashion pieces
+
+Background: Clean, neutral studio background with soft shadows.
+Style: High-quality fashion editorial photography, photorealistic.`
+              },
+              {
+                inlineData: {
+                  mimeType: personMimeType,
+                  data: personImageBase64
+                }
+              }
+            ]
+          }],
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"]
+          }
+        }),
+      }
+    );
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error('Gemini API error:', geminiResponse.status, errorText);
       
-      if (dalleResponse.status === 429) {
+      if (geminiResponse.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      if (dalleResponse.status === 402 || dalleResponse.status === 401) {
-        return new Response(
-          JSON.stringify({ error: 'API key issue. Please check your OpenAI billing.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
       throw new Error('Image generation not available. Please try again later.');
     }
 
-    const dalleData = await dalleResponse.json();
-    const generatedImageBase64 = dalleData.data?.[0]?.b64_json;
+    const geminiData = await geminiResponse.json();
+    console.log('Gemini response received');
 
-    if (!generatedImageBase64) {
-      console.error('No image in response:', JSON.stringify(dalleData));
-      throw new Error('No try-on image generated');
+    // Extract the generated image from the response
+    const candidates = geminiData.candidates;
+    if (candidates && candidates[0]?.content?.parts) {
+      for (const part of candidates[0].content.parts) {
+        if (part.inlineData) {
+          const tryOnImageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          console.log('Outfit try-on completed successfully');
+          return new Response(
+            JSON.stringify({ tryOnImageUrl }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
     }
 
-    const tryOnImageUrl = `data:image/png;base64,${generatedImageBase64}`;
-    console.log('Outfit try-on completed successfully');
-
-    return new Response(
-      JSON.stringify({ tryOnImageUrl }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('No image in response:', JSON.stringify(geminiData));
+    throw new Error('No try-on image generated');
   } catch (error) {
     console.error('Error in outfit try-on:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -127,16 +121,23 @@ serve(async (req) => {
   }
 });
 
-async function fetchImageAsBase64(url: string): Promise<string> {
+async function fetchImageAsBase64WithMime(url: string): Promise<{ base64: string; mimeType: string }> {
   if (url.startsWith('data:')) {
-    return url.split(',')[1];
+    const matches = url.match(/^data:([^;]+);base64,(.+)$/);
+    if (matches) {
+      return { mimeType: matches[1], base64: matches[2] };
+    }
+    return { mimeType: 'image/jpeg', base64: url.split(',')[1] };
   }
+  
   const response = await fetch(url);
+  const contentType = response.headers.get('content-type') || 'image/jpeg';
+  const mimeType = contentType.split(';')[0];
   const arrayBuffer = await response.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
   let binary = '';
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  return btoa(binary);
+  return { base64: btoa(binary), mimeType };
 }
