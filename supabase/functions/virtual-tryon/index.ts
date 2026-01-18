@@ -62,9 +62,9 @@ serve(async (req) => {
 
     console.log('Calling Gemini for virtual try-on with items:', clothingDescriptions);
 
-    // Use Gemini 2.0 Flash with image generation for virtual try-on
+    // Use Gemini 2.0 Flash experimental with image generation for virtual try-on
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -101,7 +101,7 @@ Clothing items to dress the person in: ${clothingDescriptions}`
             ]
           }],
           generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"]
+            responseModalities: ["IMAGE", "TEXT"]
           }
         }),
       }

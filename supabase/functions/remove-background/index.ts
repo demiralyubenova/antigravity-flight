@@ -53,11 +53,11 @@ serve(async (req) => {
       imageBase64 = btoa(binary);
     }
 
-    // Use Gemini 2.0 Flash with image generation to remove background
+    // Use Gemini 2.0 Flash experimental with image generation
     console.log('Calling Gemini API for background removal...');
     
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -78,7 +78,7 @@ serve(async (req) => {
             ]
           }],
           generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"]
+            responseModalities: ["IMAGE", "TEXT"]
           }
         }),
       }
