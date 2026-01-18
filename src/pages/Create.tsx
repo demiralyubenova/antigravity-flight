@@ -340,11 +340,11 @@ export default function Create() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="weather" className="space-y-4">
+          <TabsContent value="weather" className="space-y-4" forceMount>
             <WeatherOutfits />
           </TabsContent>
 
-          <TabsContent value="occasion" className="space-y-6">
+          <TabsContent value="occasion" className="space-y-6" forceMount>
         {/* Occasion Input Card */}
         <Card className="border-0 shadow-elegant">
           <CardContent className="p-5 space-y-4">
