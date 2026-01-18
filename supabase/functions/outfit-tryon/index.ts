@@ -35,9 +35,9 @@ serve(async (req) => {
 
     console.log('Generating outfit try-on with items:', itemDescriptions);
 
-    // Use Gemini 2.0 Flash with image generation for outfit try-on
+    // Use Gemini 2.0 Flash experimental with image generation for outfit try-on
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -71,7 +71,7 @@ Style: High-quality fashion editorial photography, photorealistic.`
             ]
           }],
           generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"]
+            responseModalities: ["IMAGE", "TEXT"]
           }
         }),
       }

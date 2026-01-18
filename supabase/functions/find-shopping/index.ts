@@ -22,9 +22,9 @@ serve(async (req) => {
 
     console.log(`Finding shopping options for: ${itemName} (budget: $${maxBudget || 'any'})`);
 
-    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
-    if (!GOOGLE_API_KEY) {
-      throw new Error('GOOGLE_API_KEY is not configured');
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
     }
 
     const systemPrompt = `You are a fashion shopping assistant. Help users find where to buy clothing items within their budget. Provide specific, actionable shopping suggestions.
@@ -51,7 +51,7 @@ ${preferredStyle ? `Style preference: ${preferredStyle}` : ''}
 
 Where can I find this item or similar alternatives? Give me specific stores and price expectations.`;
 
-    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
+    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
