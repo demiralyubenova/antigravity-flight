@@ -217,7 +217,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display text-xl">Add to Wardrobe</DialogTitle>
         </DialogHeader>
@@ -292,7 +292,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
               <SelectTrigger className="mt-1.5">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[200] bg-popover">
                 {ALL_CATEGORIES.map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {CATEGORY_LABELS[cat]}
@@ -312,7 +312,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
               <SelectTrigger className="mt-1.5">
                 <SelectValue placeholder="Select type (optional)" />
               </SelectTrigger>
-              <SelectContent className="bg-popover z-50">
+              <SelectContent className="z-[200] bg-popover">
                 {SUBCATEGORY_OPTIONS[category].map((sub) => (
                   <SelectItem key={sub.value} value={sub.value}>
                     {sub.label}
