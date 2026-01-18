@@ -77,7 +77,7 @@ export function AuthForm() {
       <div className="hidden md:flex md:w-1/2 relative items-center justify-center bg-muted/30 overflow-hidden">
         <Ripple mainCircleSize={180} numCircles={8} mainCircleOpacity={0.15} />
         <div className="relative z-10 w-full h-[600px]">
-          <ClothingOrbitDisplay text="The Atelier" />
+          <ClothingOrbitDisplay text="WearWise" />
         </div>
       </div>
 
@@ -89,7 +89,7 @@ export function AuthForm() {
             <div className="relative h-48 mb-4">
               <Ripple mainCircleSize={80} numCircles={5} mainCircleOpacity={0.15} />
               <div className="relative z-10 w-full h-full">
-                <ClothingOrbitDisplay text="The Atelier" />
+                <ClothingOrbitDisplay text="WearWise" />
               </div>
             </div>
           </div>
