@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Upload, X, Loader2, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { ClothingCategory, ALL_CATEGORIES, CATEGORY_LABELS } from '@/types/wardrobe';
+import { ClothingCategory, ClothingSubcategory, ALL_CATEGORIES, CATEGORY_LABELS, SUBCATEGORY_OPTIONS } from '@/types/wardrobe';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +27,7 @@ interface AddItemDialogProps {
   onAdd: (item: {
     name: string;
     category: ClothingCategory;
+    subcategory?: ClothingSubcategory;
     image_url: string;
     color?: string;
     brand?: string;
@@ -39,6 +40,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
   const { toast } = useToast();
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ClothingCategory>('tops');
+  const [subcategory, setSubcategory] = useState<ClothingSubcategory | ''>('');
   const [color, setColor] = useState('');
   const [brand, setBrand] = useState('');
   const [price, setPrice] = useState('');
@@ -46,6 +48,11 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
+
+  // Reset subcategory when category changes
+  useEffect(() => {
+    setSubcategory('');
+  }, [category]);
 
   const removeBackground = async (base64Image: string): Promise<{ processedUrl: string; file: File } | null> => {
     try {
@@ -178,6 +185,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
       onAdd({
         name,
         category,
+        subcategory: subcategory || undefined,
         image_url: publicUrl,
         color: color || undefined,
         brand: brand || undefined,
@@ -187,6 +195,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
       // Reset form
       setName('');
       setCategory('tops');
+      setSubcategory('');
       setColor('');
       setBrand('');
       setPrice('');
@@ -287,6 +296,23 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
                 {ALL_CATEGORIES.map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {CATEGORY_LABELS[cat]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Subcategory */}
+          <div>
+            <Label>Type</Label>
+            <Select value={subcategory} onValueChange={(v) => setSubcategory(v as ClothingSubcategory)}>
+              <SelectTrigger className="mt-1.5">
+                <SelectValue placeholder="Select type (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {SUBCATEGORY_OPTIONS[category].map((sub) => (
+                  <SelectItem key={sub.value} value={sub.value}>
+                    {sub.label}
                   </SelectItem>
                 ))}
               </SelectContent>
