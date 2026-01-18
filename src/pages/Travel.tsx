@@ -600,9 +600,23 @@ export default function Travel() {
           </DialogHeader>
           <div className="space-y-2 mt-2">
             {outfits.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Create outfits in the Create page first
-              </p>
+              <div className="text-center py-6 space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  No saved outfits yet
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setShowAddOutfitDialog(false);
+                    window.location.href = '/create';
+                  }}
+                  className="gap-2 rounded-xl"
+                >
+                  <Shirt className="h-4 w-4" />
+                  Create & Save Outfits
+                </Button>
+              </div>
             ) : (
               outfits.map(outfit => (
                 <button
