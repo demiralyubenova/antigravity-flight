@@ -44,6 +44,14 @@ A personal AI-powered wardrobe management and styling application.
 - Alerts when you lack appropriate items for an occasion
 - Provides specific recommendations for missing items
 
+### AI Feedback Loop
+- **Rating System**: Love / Meh / Hate ratings for outfit suggestions
+- **Temperature Feedback**: Too warm / Just right / Too cold
+- **Formality Feedback**: Too formal / Just right / Too casual
+- **More Like This**: Request similar outfits in the future
+- **Learning AI**: Feedback is used to improve future recommendations
+- **Preference Detection**: AI learns your temperature and formality preferences over time
+
 ---
 
 ## 🪞 Virtual Try-On

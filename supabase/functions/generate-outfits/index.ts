@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { occasion, wardrobeItems, recentOutfits } = await req.json();
+    const { occasion, wardrobeItems, recentOutfits, userFeedback } = await req.json();
 
     if (!occasion) {
       throw new Error('Occasion is required');
@@ -37,6 +37,39 @@ serve(async (req) => {
       }).join('\n')}`;
     }
 
+    // Build user feedback context
+    let feedbackContext = '';
+    if (userFeedback && userFeedback.totalFeedbackCount > 0) {
+      feedbackContext = '\n\nUSER PREFERENCES (learned from feedback):';
+      
+      if (userFeedback.lovedItemIds?.length > 0) {
+        const lovedItems = wardrobeItems.filter((i: any) => userFeedback.lovedItemIds.includes(i.id));
+        if (lovedItems.length > 0) {
+          feedbackContext += `\n- FAVORITE ITEMS (include more often): ${lovedItems.map((i: any) => i.name).join(', ')}`;
+        }
+      }
+      
+      if (userFeedback.hatedItemIds?.length > 0) {
+        const hatedItems = wardrobeItems.filter((i: any) => userFeedback.hatedItemIds.includes(i.id));
+        if (hatedItems.length > 0) {
+          feedbackContext += `\n- DISLIKED ITEMS (avoid using): ${hatedItems.map((i: any) => i.name).join(', ')}`;
+        }
+      }
+      
+      if (userFeedback.prefersWarmer) {
+        feedbackContext += '\n- User often feels cold - suggest warmer/layered options';
+      }
+      if (userFeedback.prefersCooler) {
+        feedbackContext += '\n- User often feels warm - suggest lighter/breathable options';
+      }
+      if (userFeedback.prefersMoreFormal) {
+        feedbackContext += '\n- User prefers more formal/polished looks';
+      }
+      if (userFeedback.prefersMoreCasual) {
+        feedbackContext += '\n- User prefers more casual/relaxed looks';
+      }
+    }
+
     const systemPrompt = `You are a professional fashion stylist AI. Analyze the user's wardrobe and generate outfit options for the given occasion.
 
 DRESS CODE RULES BY OCCASION:
@@ -53,7 +86,8 @@ IMPORTANT RULES:
 3. Each outfit should be complete (top + bottom OR dress, plus shoes if available)
 4. Each outfit should be DIFFERENT from the others
 5. Avoid recently worn combinations
-6. CRITICAL: If the wardrobe does NOT have appropriate items for the occasion, set "insufficient" to true and explain what's missing in "missingItems"${recentOutfitsContext}
+6. CRITICAL: If the wardrobe does NOT have appropriate items for the occasion, set "insufficient" to true and explain what's missing in "missingItems"
+7. PAY ATTENTION to user preferences learned from their feedback${recentOutfitsContext}${feedbackContext}
 
 Available wardrobe items (use EXACT IDs):
 ${wardrobeItems.map((item: any) => `ID: "${item.id}" - ${item.name} (${item.category}${item.color ? `, ${item.color}` : ''})`).join('\n')}
