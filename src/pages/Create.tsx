@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Sparkles, Eye, RefreshCw, AlertTriangle, ShoppingBag, Check, CalendarDays, CloudSun } from 'lucide-react';
+import { Loader2, Sparkles, Eye, RefreshCw, AlertTriangle, ShoppingBag, Check, CalendarDays, CloudSun, Save, Plane } from 'lucide-react';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,6 +36,7 @@ export default function Create() {
   const [recentOutfits, setRecentOutfits] = useState<any[]>([]);
   const [insufficientWardrobe, setInsufficientWardrobe] = useState<{ insufficient: boolean; missingItems: string[] } | null>(null);
   const [wornOutfits, setWornOutfits] = useState<Set<number>>(new Set());
+  const [savedOutfits, setSavedOutfits] = useState<Set<number>>(new Set());
   const [savingOutfit, setSavingOutfit] = useState<number | null>(null);
 
   // Load user's avatar for try-on (check localStorage first for persisted photo)
@@ -271,9 +272,46 @@ export default function Create() {
       if (error) throw error;
 
       setWornOutfits(prev => new Set([...prev, index]));
+      setSavedOutfits(prev => new Set([...prev, index]));
       toast({ 
         title: 'Outfit logged!', 
         description: `Added to your history for ${format(today, 'MMM d, yyyy')}` 
+      });
+    } catch (error: any) {
+      console.error('Error saving outfit:', error);
+      toast({ 
+        title: 'Failed to save outfit', 
+        description: error.message,
+        variant: 'destructive' 
+      });
+    } finally {
+      setSavingOutfit(null);
+    }
+  };
+
+  const handleSaveOutfit = async (index: number) => {
+    const outfit = outfitSuggestions[index];
+    
+    if (!user || !outfit.items || outfit.items.length === 0) return;
+
+    setSavingOutfit(index);
+    try {
+      const { error } = await supabase
+        .from('outfits')
+        .insert({
+          user_id: user.id,
+          name: outfit.name,
+          item_ids: outfit.itemIds,
+          occasion: occasion || null,
+          is_planned: true,
+        });
+
+      if (error) throw error;
+
+      setSavedOutfits(prev => new Set([...prev, index]));
+      toast({ 
+        title: 'Outfit saved!', 
+        description: 'Available in Travel for trip planning' 
       });
     } catch (error: any) {
       console.error('Error saving outfit:', error);
@@ -537,11 +575,11 @@ export default function Create() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         onClick={() => handleRetryTryOn(index)}
                         disabled={tryOnLoading.has(index) || !personImage}
-                        variant={outfit.tryOnImageUrl ? "secondary" : "outline"}
+                        variant="ghost"
                         size="sm"
                         className="gap-1.5 rounded-xl"
                       >
@@ -553,29 +591,45 @@ export default function Create() {
                         Retry
                       </Button>
                       <Button
+                        onClick={() => handleSaveOutfit(index)}
+                        disabled={savingOutfit !== null || savedOutfits.has(index)}
+                        variant={savedOutfits.has(index) ? "secondary" : "outline"}
+                        size="sm"
+                        className="gap-1.5 rounded-xl"
+                      >
+                        {savingOutfit === index && !wornOutfits.has(index) ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : savedOutfits.has(index) ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <Save className="h-3.5 w-3.5" />
+                        )}
+                        {savedOutfits.has(index) ? 'Saved' : 'Save'}
+                      </Button>
+                      <Button
                         onClick={() => handleWearToday(index)}
                         disabled={savingOutfit !== null || wornOutfits.has(index)}
                         variant={wornOutfits.has(index) ? "secondary" : "default"}
                         size="sm"
-                        className="flex-1 gap-1.5 rounded-xl"
+                        className="gap-1.5 rounded-xl"
                       >
-                        {savingOutfit === index ? (
+                        {savingOutfit === index && !savedOutfits.has(index) ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : wornOutfits.has(index) ? (
                           <Check className="h-3.5 w-3.5" />
                         ) : (
                           <Check className="h-3.5 w-3.5" />
                         )}
-                        {savingOutfit === index ? 'Saving...' : wornOutfits.has(index) ? 'Logged!' : 'Wear Today'}
+                        {wornOutfits.has(index) ? 'Logged!' : 'Wear Today'}
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         className="gap-1 rounded-xl"
-                        onClick={() => window.location.href = '/history'}
+                        onClick={() => window.location.href = '/travel'}
                       >
-                        <CalendarDays className="h-3.5 w-3.5" />
-                        Plan
+                        <Plane className="h-3.5 w-3.5" />
+                        Travel
                       </Button>
                     </div>
 
