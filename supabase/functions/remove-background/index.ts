@@ -18,79 +18,74 @@ serve(async (req) => {
       throw new Error('Image URL is required');
     }
 
-    const GOOGLE_GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
-    if (!GOOGLE_GEMINI_API_KEY) {
-      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
+    const REMOVE_BG_API_KEY = Deno.env.get('REMOVE_BG_API_KEY');
+    if (!REMOVE_BG_API_KEY) {
+      throw new Error('REMOVE_BG_API_KEY is not configured');
     }
 
-    console.log('Removing background from image using Google Gemini...');
+    console.log('Removing background from image using remove.bg API...');
 
-    // Fetch the image and convert to base64
-    let imageBase64: string;
-    let mimeType: string = 'image/jpeg';
+    // Prepare the request to remove.bg
+    const formData = new FormData();
     
     if (imageUrl.startsWith('data:')) {
+      // Handle base64 data URL - extract the base64 part and convert to blob
       const matches = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
-      if (matches) {
-        mimeType = matches[1];
-        imageBase64 = matches[2];
-      } else {
+      if (!matches) {
         throw new Error('Invalid data URL format');
       }
-    } else {
-      const imageResponse = await fetch(imageUrl);
-      if (!imageResponse.ok) {
-        throw new Error('Failed to fetch image');
-      }
-      const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
-      mimeType = contentType.split(';')[0];
-      const arrayBuffer = await imageResponse.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      let binary = '';
-      for (let i = 0; i < uint8Array.length; i++) {
-        binary += String.fromCharCode(uint8Array[i]);
-      }
-      imageBase64 = btoa(binary);
-    }
-
-    // Use Gemini 2.0 Flash experimental with image generation
-    console.log('Calling Gemini API for background removal...');
-    
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              {
-                text: "Remove the background from this image and replace it with a pure white background (#FFFFFF). Keep the main subject (clothing item, accessory, or object) exactly as it is with all its details, colors, and textures preserved. Output only the image with the white background."
-              },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: imageBase64
-                }
-              }
-            ]
-          }],
-          generationConfig: {
-            responseModalities: ["IMAGE", "TEXT"]
-          }
-        }),
-      }
-    );
-
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error('Gemini API error:', geminiResponse.status, errorText);
+      const mimeType = matches[1];
+      const base64Data = matches[2];
       
-      if (geminiResponse.status === 429) {
+      // Convert base64 to binary
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: mimeType });
+      formData.append('image_file', blob, 'image.png');
+    } else {
+      // For URL, use image_url parameter
+      formData.append('image_url', imageUrl);
+    }
+    
+    formData.append('size', 'auto');
+    formData.append('bg_color', 'FFFFFF');
+
+    console.log('Calling remove.bg API...');
+    
+    const response = await fetch('https://api.remove.bg/v1.0/removebg', {
+      method: 'POST',
+      headers: {
+        'X-Api-Key': REMOVE_BG_API_KEY,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('remove.bg API error:', response.status, errorText);
+      
+      if (response.status === 402) {
+        // Payment required - out of credits
         return new Response(
-          JSON.stringify({ processedImageUrl: imageUrl, fallback: true, error: 'Rate limit exceeded' }),
+          JSON.stringify({ 
+            processedImageUrl: imageUrl, 
+            fallback: true, 
+            error: 'remove.bg credits exhausted. Please add more credits to your account.' 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (response.status === 403) {
+        return new Response(
+          JSON.stringify({ 
+            processedImageUrl: imageUrl, 
+            fallback: true, 
+            error: 'Invalid remove.bg API key' 
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -101,27 +96,22 @@ serve(async (req) => {
       );
     }
 
-    const geminiData = await geminiResponse.json();
-    console.log('Gemini response received');
-
-    // Extract the generated image from the response
-    const candidates = geminiData.candidates;
-    if (candidates && candidates[0]?.content?.parts) {
-      for (const part of candidates[0].content.parts) {
-        if (part.inlineData) {
-          const processedImageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          console.log('Background removed successfully');
-          return new Response(
-            JSON.stringify({ processedImageUrl }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
+    // remove.bg returns the image directly as binary
+    const imageBuffer = await response.arrayBuffer();
+    const uint8Array = new Uint8Array(imageBuffer);
+    
+    // Convert to base64
+    let binary = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
     }
-
-    console.log('No image generated, returning original');
+    const base64Image = btoa(binary);
+    const processedImageUrl = `data:image/png;base64,${base64Image}`;
+    
+    console.log('Background removed successfully with remove.bg');
+    
     return new Response(
-      JSON.stringify({ processedImageUrl: imageUrl, fallback: true }),
+      JSON.stringify({ processedImageUrl }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
