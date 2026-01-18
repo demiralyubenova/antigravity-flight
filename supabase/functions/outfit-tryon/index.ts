@@ -28,6 +28,17 @@ serve(async (req) => {
     // Fetch person image as base64
     const { base64: personImageBase64, mimeType: personMimeType } = await fetchImageAsBase64WithMime(personImageUrl);
 
+    // Fetch all clothing images as base64
+    const clothingImagesData = await Promise.all(
+      clothingItems.map(async (item: any) => {
+        if (item.image_url) {
+          const { base64, mimeType } = await fetchImageAsBase64WithMime(item.image_url);
+          return { ...item, base64, mimeType };
+        }
+        return item;
+      })
+    );
+
     // Build outfit description from item names
     const itemDescriptions = clothingItems.map((item: any) => 
       `${item.name} (${item.category})`
@@ -35,7 +46,47 @@ serve(async (req) => {
 
     console.log('Calling Google Gemini 3 Pro Image for outfit try-on with items:', itemDescriptions);
 
-    // Use Gemini 3 Pro Image Preview - prompt designed to avoid identity preservation flags
+    // Build parts array with person image first, then all clothing images
+    const parts: any[] = [
+      {
+        inline_data: {
+          mime_type: personMimeType,
+          data: personImageBase64,
+        },
+      },
+    ];
+
+    // Add each clothing item image
+    clothingImagesData.forEach((item: any, index: number) => {
+      if (item.base64 && item.mimeType) {
+        parts.push({
+          inline_data: {
+            mime_type: item.mimeType,
+            data: item.base64,
+          },
+        });
+      }
+    });
+
+    // Add the prompt at the end
+    parts.push({
+      text: `You are a virtual styling assistant. The first image is a photo of a person. The following ${clothingImagesData.length} images are specific clothing items from their wardrobe.
+
+IMPORTANT: You MUST use the EXACT clothing items shown in the provided images - do not create or substitute different clothes. These are the person's actual wardrobe items: ${itemDescriptions}.
+
+Create a photorealistic fashion image showing a model with similar body type to the reference person, wearing EXACTLY these specific clothing items (not similar items - the EXACT items from the images provided).
+
+Requirements:
+- Use the EXACT clothing items from the provided images - same colors, patterns, designs
+- Natural full-body pose showing the complete outfit
+- Professional fashion photography lighting
+- Clean neutral background
+- High-quality editorial style
+
+The clothing must match the uploaded images precisely - same fabric, color, brand details, and style.`,
+    });
+
+    // Use Gemini 3 Pro Image Preview with all clothing images included
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${GEMINI_API_KEY}`,
       {
@@ -46,26 +97,7 @@ serve(async (req) => {
         body: JSON.stringify({
           contents: [
             {
-              parts: [
-                {
-                  inline_data: {
-                    mime_type: personMimeType,
-                    data: personImageBase64,
-                  },
-                },
-                {
-                  text: `Create a professional fashion photography image of a model wearing: ${itemDescriptions}.
-
-Style the outfit based on the reference photo's aesthetic:
-- Similar body type and proportions
-- Natural, confident full-body pose  
-- Professional studio lighting
-- Clean neutral background
-- High-quality fashion photography style
-
-Deliver a photorealistic fashion editorial image showcasing these clothing items.`,
-                },
-              ],
+              parts: parts,
             },
           ],
           generationConfig: {
