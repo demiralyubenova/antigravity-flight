@@ -32,135 +32,115 @@ serve(async (req) => {
       throw new Error('Person image and at least one clothing item are required');
     }
 
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
     
-    if (!OPENAI_API_KEY && !LOVABLE_API_KEY) {
-      throw new Error('No API key configured for image generation');
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
     }
 
-    console.log('Starting virtual try-on with', items.length, 'items');
+    console.log('Starting virtual try-on with', items.length, 'items using Gemini');
 
-    // First, analyze the person image using GPT-4o vision
-    const personImageBase64 = await fetchImageAsBase64(personImageUrl);
+    // Fetch person image as base64
+    const { base64: personImageBase64, mimeType: personMimeType } = await fetchImageAsBase64WithMime(personImageUrl);
     
-    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Describe this person in detail for a fashion context: their pose, body type, skin tone, hair style and color, and any visible features. Be specific so an image can be accurately recreated. Keep the description under 200 words.' },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${personImageBase64}` } }
-          ]
-        }],
-        max_tokens: 300
-      }),
-    });
-
-    if (!analysisResponse.ok) {
-      const errorText = await analysisResponse.text();
-      console.error('Person analysis failed:', errorText);
-      throw new Error('Failed to analyze person image');
-    }
-
-    const analysisData = await analysisResponse.json();
-    const personDescription = analysisData.choices?.[0]?.message?.content || 'a person';
-    console.log('Person analyzed:', personDescription.substring(0, 100) + '...');
-
-    // Analyze each clothing item
-    const clothingDescriptions: string[] = [];
+    // Build image parts for all clothing items
+    const clothingParts: any[] = [];
     for (const item of items) {
-      const clothingBase64 = await fetchImageAsBase64(item.imageUrl);
-      
-      const clothingResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      const { base64, mimeType } = await fetchImageAsBase64WithMime(item.imageUrl);
+      clothingParts.push({
+        inlineData: {
+          mimeType: mimeType,
+          data: base64
+        }
+      });
+    }
+
+    // Build the prompt for Gemini
+    const clothingDescriptions = items.map((item, i) => 
+      `Item ${i + 1}: ${item.name || item.type || 'clothing item'} (${item.category || 'clothing'})`
+    ).join(', ');
+
+    console.log('Calling Gemini for virtual try-on with items:', clothingDescriptions);
+
+    // Use Gemini 2.0 Flash with image generation for virtual try-on
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+      {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Describe this clothing item in precise detail: type, color, pattern, material, style, and any distinctive features. Keep it under 100 words.' },
-              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${clothingBase64}` } }
+          contents: [{
+            parts: [
+              {
+                text: `Create a professional fashion photography image showing the person from the first image wearing ALL of the clothing items shown in the subsequent images. 
+
+The person should:
+- Maintain their exact appearance (face, body type, skin tone, hair)
+- Be shown in a natural, confident pose
+- Be photographed full-body with studio lighting
+
+The clothing should:
+- Fit the person naturally and realistically
+- Maintain their exact colors, patterns, and details from the original images
+- Be styled together as a cohesive outfit
+
+Background: Clean, neutral studio background.
+Style: High-quality fashion editorial photography.
+
+Clothing items to dress the person in: ${clothingDescriptions}`
+              },
+              {
+                inlineData: {
+                  mimeType: personMimeType,
+                  data: personImageBase64
+                }
+              },
+              ...clothingParts
             ]
           }],
-          max_tokens: 150
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"]
+          }
         }),
-      });
-
-      if (clothingResponse.ok) {
-        const clothingData = await clothingResponse.json();
-        const desc = clothingData.choices?.[0]?.message?.content;
-        if (desc) clothingDescriptions.push(desc);
       }
-    }
+    );
 
-    console.log('Generating try-on image with DALL-E 3...');
-
-    // Generate the try-on image using DALL-E 3
-    const outfitDescription = clothingDescriptions.join('. Also wearing: ');
-    const prompt = `Professional fashion photography of ${personDescription.substring(0, 500)} wearing ${outfitDescription.substring(0, 500)}. Full body shot, natural pose, studio lighting, clean background. High quality fashion editorial style photo. The clothing fits perfectly and looks natural.`;
-
-    const dalleResponse = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: prompt.substring(0, 4000),
-        n: 1,
-        size: '1024x1792',
-        quality: 'standard',
-        response_format: 'b64_json'
-      }),
-    });
-
-    if (!dalleResponse.ok) {
-      const errorText = await dalleResponse.text();
-      console.error('DALL-E error:', errorText);
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error('Gemini API error:', geminiResponse.status, errorText);
       
-      if (dalleResponse.status === 429) {
+      if (geminiResponse.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      if (dalleResponse.status === 402 || dalleResponse.status === 401) {
-        return new Response(
-          JSON.stringify({ error: 'API key issue. Please check your OpenAI billing.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
       throw new Error('Image generation failed. Please try again.');
     }
 
-    const dalleData = await dalleResponse.json();
-    const generatedImageBase64 = dalleData.data?.[0]?.b64_json;
+    const geminiData = await geminiResponse.json();
+    console.log('Gemini response received');
 
-    if (!generatedImageBase64) {
-      console.error('No image in response:', JSON.stringify(dalleData));
-      throw new Error('No try-on image generated');
+    // Extract the generated image from the response
+    const candidates = geminiData.candidates;
+    if (candidates && candidates[0]?.content?.parts) {
+      for (const part of candidates[0].content.parts) {
+        if (part.inlineData) {
+          const tryOnImageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          console.log('Virtual try-on completed successfully');
+          return new Response(
+            JSON.stringify({ tryOnImageUrl }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
     }
 
-    const tryOnImageUrl = `data:image/png;base64,${generatedImageBase64}`;
-    console.log('Virtual try-on completed successfully');
-
-    return new Response(
-      JSON.stringify({ tryOnImageUrl }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('No image in response:', JSON.stringify(geminiData));
+    throw new Error('No try-on image generated');
   } catch (error) {
     console.error('Error in virtual try-on:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -171,16 +151,23 @@ serve(async (req) => {
   }
 });
 
-async function fetchImageAsBase64(url: string): Promise<string> {
+async function fetchImageAsBase64WithMime(url: string): Promise<{ base64: string; mimeType: string }> {
   if (url.startsWith('data:')) {
-    return url.split(',')[1];
+    const matches = url.match(/^data:([^;]+);base64,(.+)$/);
+    if (matches) {
+      return { mimeType: matches[1], base64: matches[2] };
+    }
+    return { mimeType: 'image/jpeg', base64: url.split(',')[1] };
   }
+  
   const response = await fetch(url);
+  const contentType = response.headers.get('content-type') || 'image/jpeg';
+  const mimeType = contentType.split(';')[0];
   const arrayBuffer = await response.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
   let binary = '';
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  return btoa(binary);
+  return { base64: btoa(binary), mimeType };
 }
