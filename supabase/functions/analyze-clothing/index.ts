@@ -18,23 +18,31 @@ serve(async (req) => {
       throw new Error('Image URL is required');
     }
 
-    const GOOGLE_GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
-    if (!GOOGLE_GEMINI_API_KEY) {
-      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    console.log('Analyzing clothing image...');
+    console.log('Analyzing clothing image with Lovable AI...');
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`, {
+    const imageBase64 = imageUrl.startsWith('data:') 
+      ? imageUrl.split(',')[1] 
+      : await fetchImageAsBase64(imageUrl);
+
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [
+        model: 'google/gemini-2.5-flash',
+        messages: [
           {
-            parts: [
+            role: 'user',
+            content: [
               {
+                type: 'text',
                 text: `Analyze this clothing item image and extract the following information in JSON format:
 {
   "name": "A short descriptive name for the item (e.g., 'Black Diesel Hoodie', 'Blue Denim Jeans')",
@@ -43,29 +51,25 @@ serve(async (req) => {
   "brand": "The brand name if visible on the item, or empty string if not visible"
 }
 
-Return ONLY the JSON object, no other text.`,
+Return ONLY the JSON object, no other text.`
               },
               {
-                inlineData: {
-                  mimeType: 'image/jpeg',
-                  data: imageUrl.startsWith('data:') 
-                    ? imageUrl.split(',')[1] 
-                    : await fetchImageAsBase64(imageUrl),
-                },
-              },
-            ],
-          },
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64}`
+                }
+              }
+            ]
+          }
         ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 500,
-        },
+        max_tokens: 500,
+        temperature: 0.1,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Google API error:', errorText);
+      console.error('Lovable AI error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -74,13 +78,20 @@ Return ONLY the JSON object, no other text.`,
         );
       }
       
-      throw new Error(`Google API error: ${response.status}`);
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'AI credits exhausted. Please add more credits.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      throw new Error(`Lovable AI error: ${response.status}`);
     }
 
     const data = await response.json();
     console.log('AI response:', JSON.stringify(data));
 
-    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const textContent = data.choices?.[0]?.message?.content;
     if (!textContent) {
       throw new Error('No clothing analysis returned from AI');
     }
