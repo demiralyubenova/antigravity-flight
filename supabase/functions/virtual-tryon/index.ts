@@ -69,20 +69,27 @@ serve(async (req) => {
       }
     });
     
-    // Prompt focused on styling, not identity preservation
+    // Prompt focused on using EXACT clothing items from images
     parts.push({
-      text: `Create a professional fashion photography image of a model wearing the clothing items shown above.
+      text: `You are a virtual styling assistant. The first ${items.length} image(s) show specific clothing items from someone's wardrobe. The last image is a photo of a person.
 
-Style the outfit based on the reference photo's aesthetic:
-- Similar body type and proportions
-- Natural, confident full-body pose
-- Professional studio lighting
+CRITICAL: You MUST use the EXACT clothing items shown in the first ${items.length} image(s) - these are the person's actual wardrobe pieces: ${clothingDescriptions}
+
+DO NOT generate, modify, or substitute different clothes. Use the EXACT items from the provided images with their exact:
+- Colors and patterns
+- Fabric and texture
+- Brand details and logos
+- Style and cut
+
+Create a photorealistic fashion image showing a model with similar body type to the reference person, wearing ONLY these specific clothing items exactly as they appear.
+
+Requirements:
+- Natural full-body pose showing the complete outfit
+- Professional fashion photography lighting
 - Clean neutral background
-- High-quality fashion photography style
+- High-quality editorial style
 
-Focus on showcasing the clothing items: ${clothingDescriptions}
-
-Deliver a photorealistic fashion editorial image.`
+The clothing must match the uploaded images precisely - do not alter, enhance, or replace any clothing item.`
     });
 
     console.log('Calling Google Gemini 3 Pro Image for virtual try-on with items:', clothingDescriptions);
