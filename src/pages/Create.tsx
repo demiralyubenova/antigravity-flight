@@ -15,6 +15,7 @@ import { WeatherOutfits } from '@/components/weather/WeatherOutfits';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OutfitFeedback } from '@/components/outfit/OutfitFeedback';
 import { useOutfitFeedback } from '@/hooks/useOutfitFeedback';
+import { TextShimmer } from '@/components/ui/text-shimmer';
 interface OutfitSuggestion {
   name: string;
   description: string;
@@ -361,9 +362,12 @@ export default function Create() {
                   <div className="w-16 h-16 rounded-full bg-primary/20 animate-pulse" />
                   <Sparkles className="absolute inset-0 m-auto h-8 w-8 text-primary animate-spin" />
                 </div>
-                <p className="text-muted-foreground animate-pulse">
+                <TextShimmer 
+                  className="text-lg font-medium [--base-color:theme(colors.primary)] [--base-gradient-color:theme(colors.primary/0.3)]" 
+                  duration={1.5}
+                >
                   Creating your perfect outfits...
-                </p>
+                </TextShimmer>
               </div>
             </CardContent>
           </Card>
@@ -470,9 +474,14 @@ export default function Create() {
                       {/* Try On Result / Loading */}
                       <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted border border-border">
                         {tryOnLoading.has(index) ? (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p className="text-sm text-muted-foreground">Creating your look...</p>
+                            <TextShimmer 
+                              className="text-sm font-medium" 
+                              duration={1.2}
+                            >
+                              Generating your look...
+                            </TextShimmer>
                           </div>
                         ) : outfit.tryOnImageUrl ? (
                           <>
