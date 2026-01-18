@@ -115,6 +115,39 @@ A personal AI-powered wardrobe management and styling application.
 - **Brand Distribution**: See which brands dominate your closet
 - **Category Breakdown**: Balance across tops, bottoms, etc.
 
+### Outfit Variety Tracking
+- **Variety Score**: 0-100 score measuring outfit diversity
+- **Similarity Detection**: Identifies outfits with overlapping items or colors
+- **Neglected Items**: Highlights pieces not worn in 30+ days
+- **Wear Count Tracking**: Tracks how often each item is worn
+- **Silhouette Analysis**: Categorizes outfits by shape (balanced, top-heavy, etc.)
+
+---
+
+## 🌤️ Weather-Based Suggestions
+
+### Smart Weather Integration
+- **Location-Based**: Uses your current location for weather data
+- **Real-Time Weather**: Fetches current temperature, conditions, humidity, and wind
+- **Cold Tolerance Setting**: Personalize suggestions based on how you handle cold
+- **Weather-Aware Outfits**: AI suggests appropriate clothing for current conditions
+
+---
+
+## 🛒 Wishlist & Shopping
+
+### Wishlist Management
+- **Add Items**: Track clothing pieces you want to buy
+- **Priority Levels**: Set high, medium, or low priority
+- **Target Prices**: Set budget goals for each item
+- **Category Organization**: Organize by clothing category
+- **Purchase Tracking**: Mark items as purchased when bought
+
+### AI Shopping Suggestions
+- **Find Similar Items**: Get AI-powered shopping recommendations
+- **Style Matching**: Suggestions based on your wardrobe style
+- **Budget Awareness**: Recommendations within your price range
+
 ---
 
 ## 👤 User Profile
