@@ -485,11 +485,11 @@ export default function TryOn() {
 
         {/* Try On Button */}
         {personImage && selectedItem && !selectedSavedResult && (
-          <div className="fixed bottom-20 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 px-4 w-full max-w-md">
             <Button
               onClick={handleTryOn}
               disabled={processing}
-              className="w-full max-w-md mx-auto h-14 text-lg gap-3 rounded-2xl shadow-elegant-lg"
+              className="w-full h-14 text-lg gap-3 rounded-2xl shadow-elegant-lg"
               size="lg"
             >
               {processing ? (
