@@ -20,6 +20,7 @@ interface OutfitSuggestion {
   description: string;
   itemIds: string[];
   items?: ClothingItem[];
+  tryOnImageUrl?: string;
 }
 
 export default function Create() {
@@ -28,9 +29,8 @@ export default function Create() {
   const { items: wardrobeItems } = useClothingItems('all');
   const [occasion, setOccasion] = useState('');
   const [loading, setLoading] = useState(false);
-  const [tryOnLoading, setTryOnLoading] = useState<number | null>(null);
+  const [tryOnLoading, setTryOnLoading] = useState<Set<number>>(new Set());
   const [outfitSuggestions, setOutfitSuggestions] = useState<OutfitSuggestion[]>([]);
-  const [tryOnResults, setTryOnResults] = useState<Record<number, string>>({});
   const [personImage, setPersonImage] = useState<string | null>(null);
   const [recentOutfits, setRecentOutfits] = useState<any[]>([]);
   const [insufficientWardrobe, setInsufficientWardrobe] = useState<{ insufficient: boolean; missingItems: string[] } | null>(null);
@@ -113,7 +113,7 @@ export default function Create() {
 
     setLoading(true);
     setOutfitSuggestions([]);
-    setTryOnResults({});
+    setTryOnLoading(new Set());
     setInsufficientWardrobe(null);
 
     // Get feedback summary for AI context
@@ -168,7 +168,14 @@ export default function Create() {
         }));
 
         setOutfitSuggestions(suggestionsWithItems);
-        toast({ title: '✨ 3 outfit options ready!' });
+        toast({ title: '✨ Creating try-on previews...' });
+
+        // Automatically generate try-on for all outfits if person image available
+        if (personImage) {
+          suggestionsWithItems.forEach((_: OutfitSuggestion, index: number) => {
+            generateTryOn(index, suggestionsWithItems);
+          });
+        }
       }
     } catch (error: any) {
       console.error('Error generating outfits:', error);
@@ -182,24 +189,12 @@ export default function Create() {
     }
   };
 
-  const handleTryOn = async (index: number) => {
-    const outfit = outfitSuggestions[index];
+  const generateTryOn = async (index: number, outfits: OutfitSuggestion[]) => {
+    const outfit = outfits[index];
     
-    if (!personImage) {
-      toast({ 
-        title: 'No photo found', 
-        description: 'Please upload your photo in the Try On page first',
-        variant: 'destructive' 
-      });
-      return;
-    }
+    if (!personImage || !outfit.items || outfit.items.length === 0) return;
 
-    if (!outfit.items || outfit.items.length === 0) {
-      toast({ title: 'No items in this outfit', variant: 'destructive' });
-      return;
-    }
-
-    setTryOnLoading(index);
+    setTryOnLoading(prev => new Set([...prev, index]));
     try {
       const { data, error } = await supabase.functions.invoke('outfit-tryon', {
         body: {
@@ -219,19 +214,31 @@ export default function Create() {
       }
 
       if (data.tryOnImageUrl) {
-        setTryOnResults(prev => ({ ...prev, [index]: data.tryOnImageUrl }));
-        toast({ title: 'Try-on complete!' });
+        setOutfitSuggestions(prev => prev.map((o, i) => 
+          i === index ? { ...o, tryOnImageUrl: data.tryOnImageUrl } : o
+        ));
       }
     } catch (error: any) {
       console.error('Error in outfit try-on:', error);
+    } finally {
+      setTryOnLoading(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(index);
+        return newSet;
+      });
+    }
+  };
+
+  const handleRetryTryOn = async (index: number) => {
+    if (!personImage) {
       toast({ 
-        title: 'Try-on failed', 
-        description: error.message || 'Please try again',
+        title: 'No photo found', 
+        description: 'Please upload your photo in the Try On page first',
         variant: 'destructive' 
       });
-    } finally {
-      setTryOnLoading(null);
+      return;
     }
+    generateTryOn(index, outfitSuggestions);
   };
 
   const handleWearToday = async (index: number) => {
@@ -439,7 +446,7 @@ export default function Create() {
               </Button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               {outfitSuggestions.map((outfit, index) => (
                 <Card key={index} className="border-0 shadow-elegant overflow-hidden">
                   <CardContent className="p-5 space-y-4">
@@ -458,89 +465,99 @@ export default function Create() {
                       </p>
                     </div>
 
-                    {/* Outfit Items */}
-                    <div className="flex gap-3 overflow-x-auto pb-2">
-                      {outfit.items?.map((item) => (
-                        <div key={item.id} className="flex-shrink-0">
-                          <div className="w-20 h-24 rounded-xl overflow-hidden bg-muted border-2 border-border shadow-sm">
+                    {/* Side-by-side: Try-on + Items */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Try On Result / Loading */}
+                      <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted border border-border">
+                        {tryOnLoading.has(index) ? (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p className="text-sm text-muted-foreground">Creating your look...</p>
+                          </div>
+                        ) : outfit.tryOnImageUrl ? (
+                          <>
                             <img 
-                              src={item.image_url} 
-                              alt={item.name} 
+                              src={outfit.tryOnImageUrl} 
+                              alt={`${outfit.name} try-on`} 
                               className="w-full h-full object-cover" 
                             />
+                            <div className="absolute bottom-2 left-2 right-2">
+                              <div className="bg-background/90 backdrop-blur-sm rounded-lg px-2 py-1.5 text-center">
+                                <span className="text-xs font-medium text-primary">✨ Your Look</span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+                            <Eye className="h-8 w-8 text-muted-foreground/50" />
+                            <p className="text-xs text-muted-foreground">
+                              {personImage ? 'Try-on will appear here' : 'Upload photo in Try On page'}
+                            </p>
                           </div>
-                          <p className="text-xs text-center mt-1.5 truncate w-20 text-muted-foreground">
-                            {item.name}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                        )}
+                      </div>
 
-                    {/* Try On Result */}
-                    {tryOnResults[index] && (
-                      <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-2xl overflow-hidden bg-muted border border-border">
-                        <img 
-                          src={tryOnResults[index]} 
-                          alt={`${outfit.name} try-on`} 
-                          className="w-full h-full object-cover" 
-                        />
-                        <div className="absolute bottom-3 left-3 right-3">
-                          <div className="bg-background/90 backdrop-blur-sm rounded-xl px-3 py-2 text-center">
-                            <span className="text-sm font-medium text-primary">✨ Your Look</span>
-                          </div>
+                      {/* Outfit Items Grid */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">Items</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {outfit.items?.map((item) => (
+                            <div key={item.id} className="space-y-1">
+                              <div className="aspect-square rounded-lg overflow-hidden bg-muted border border-border">
+                                <img 
+                                  src={item.image_url} 
+                                  alt={item.name} 
+                                  className="w-full h-full object-cover" 
+                                />
+                              </div>
+                              <p className="text-[10px] text-center truncate text-muted-foreground">
+                                {item.name}
+                              </p>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    )}
+                    </div>
 
                     {/* Action Buttons */}
                     <div className="flex gap-2">
                       <Button
-                        onClick={() => handleTryOn(index)}
-                        disabled={tryOnLoading !== null || !personImage}
-                        variant={tryOnResults[index] ? "secondary" : "outline"}
-                        className="flex-1 gap-2 rounded-xl h-11"
+                        onClick={() => handleRetryTryOn(index)}
+                        disabled={tryOnLoading.has(index) || !personImage}
+                        variant={outfit.tryOnImageUrl ? "secondary" : "outline"}
+                        size="sm"
+                        className="gap-1.5 rounded-xl"
                       >
-                        {tryOnLoading === index ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Creating...
-                          </>
+                        {tryOnLoading.has(index) ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <>
-                            <Eye className="h-4 w-4" />
-                            {tryOnResults[index] ? 'Try Again' : 'Try On'}
-                          </>
+                          <RefreshCw className="h-3.5 w-3.5" />
                         )}
+                        Retry
                       </Button>
                       <Button
                         onClick={() => handleWearToday(index)}
                         disabled={savingOutfit !== null || wornOutfits.has(index)}
                         variant={wornOutfits.has(index) ? "secondary" : "default"}
-                        className="flex-1 gap-2 rounded-xl h-11"
+                        size="sm"
+                        className="flex-1 gap-1.5 rounded-xl"
                       >
                         {savingOutfit === index ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Saving...
-                          </>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : wornOutfits.has(index) ? (
-                          <>
-                            <Check className="h-4 w-4" />
-                            Logged!
-                          </>
+                          <Check className="h-3.5 w-3.5" />
                         ) : (
-                          <>
-                            <Check className="h-4 w-4" />
-                            Wear Today
-                          </>
+                          <Check className="h-3.5 w-3.5" />
                         )}
+                        {savingOutfit === index ? 'Saving...' : wornOutfits.has(index) ? 'Logged!' : 'Wear Today'}
                       </Button>
                       <Button
                         variant="outline"
-                        className="gap-1 rounded-xl h-11"
+                        size="sm"
+                        className="gap-1 rounded-xl"
                         onClick={() => window.location.href = '/history'}
                       >
-                        <CalendarDays className="h-4 w-4" />
+                        <CalendarDays className="h-3.5 w-3.5" />
                         Plan
                       </Button>
                     </div>
