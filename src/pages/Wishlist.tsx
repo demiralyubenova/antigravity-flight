@@ -66,7 +66,17 @@ export default function Wishlist() {
   
   const [selectedItem, setSelectedItem] = useState<WishlistItem | null>(null);
   const [shoppingLoading, setShoppingLoading] = useState(false);
-  const [shoppingSuggestions, setShoppingSuggestions] = useState('');
+  const [shoppingResults, setShoppingResults] = useState<{
+    stores: Array<{
+      storeName: string;
+      storeUrl: string;
+      priceRange: string;
+      searchUrl: string;
+      reason: string;
+    }>;
+    tips: string;
+    budget: string | null;
+  } | null>(null);
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -166,7 +176,7 @@ export default function Wishlist() {
   const handleFindShopping = async (item: WishlistItem) => {
     setSelectedItem(item);
     setShoppingLoading(true);
-    setShoppingSuggestions('');
+    setShoppingResults(null);
 
     try {
       const { data, error } = await supabase.functions.invoke('find-shopping', {
@@ -179,7 +189,18 @@ export default function Wishlist() {
       });
 
       if (error) throw error;
-      setShoppingSuggestions(data.suggestions);
+      
+      // Handle both old format (suggestions string) and new format (stores array)
+      if (data.stores) {
+        setShoppingResults(data);
+      } else if (data.suggestions) {
+        // Fallback for old format
+        setShoppingResults({
+          stores: [],
+          tips: data.suggestions,
+          budget: item.target_price ? `$${item.target_price}` : null,
+        });
+      }
     } catch (error: any) {
       console.error('Error finding shopping options:', error);
       toast({
@@ -378,27 +399,71 @@ export default function Wishlist() {
         </Dialog>
 
         {/* Shopping Suggestions Dialog */}
-        <Dialog open={!!selectedItem && (shoppingLoading || !!shoppingSuggestions)} onOpenChange={() => {
+        <Dialog open={!!selectedItem && (shoppingLoading || !!shoppingResults)} onOpenChange={() => {
           setSelectedItem(null);
-          setShoppingSuggestions('');
+          setShoppingResults(null);
         }}>
           <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
-                Shopping Guide: {selectedItem?.name}
+                Where to Buy: {selectedItem?.name}
               </DialogTitle>
+              {shoppingResults?.budget && (
+                <p className="text-sm text-muted-foreground">
+                  Your budget: <span className="font-medium text-primary">{shoppingResults.budget}</span>
+                </p>
+              )}
             </DialogHeader>
             {shoppingLoading ? (
               <div className="flex flex-col items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-                <p className="text-muted-foreground">Finding the best deals for you...</p>
+                <p className="text-muted-foreground">Finding the best places to shop...</p>
               </div>
-            ) : (
-              <div className="prose prose-sm max-w-none text-foreground">
-                {shoppingSuggestions.split('\n').map((line, i) => (
-                  <p key={i} className="mb-2 last:mb-0">{line}</p>
-                ))}
+            ) : shoppingResults && (
+              <div className="space-y-6">
+                {/* Store Links */}
+                {shoppingResults.stores.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
+                      Recommended Stores
+                    </h4>
+                    <div className="grid gap-2">
+                      {shoppingResults.stores.map((store, index) => (
+                        <a
+                          key={index}
+                          href={store.searchUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors group"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{store.storeName}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {store.priceRange}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{store.reason}</p>
+                          </div>
+                          <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tips */}
+                {shoppingResults.tips && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
+                      Shopping Tips
+                    </h4>
+                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/10">
+                      <p className="text-sm leading-relaxed">{shoppingResults.tips}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>
