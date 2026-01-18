@@ -305,11 +305,14 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
           {/* Subcategory */}
           <div>
             <Label>Type</Label>
-            <Select value={subcategory} onValueChange={(v) => setSubcategory(v as ClothingSubcategory)}>
+            <Select 
+              value={subcategory || undefined} 
+              onValueChange={(v) => setSubcategory(v as ClothingSubcategory)}
+            >
               <SelectTrigger className="mt-1.5">
                 <SelectValue placeholder="Select type (optional)" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-popover z-50">
                 {SUBCATEGORY_OPTIONS[category].map((sub) => (
                   <SelectItem key={sub.value} value={sub.value}>
                     {sub.label}
