@@ -39,6 +39,68 @@ export default function Create() {
   const [savedOutfits, setSavedOutfits] = useState<Set<number>>(new Set());
   const [savingOutfit, setSavingOutfit] = useState<number | null>(null);
 
+  const getCreateStateKey = (userId: string) => `create_occasion_state_${userId}`;
+
+  // Persist occasion outfits so they don't disappear when leaving the page
+  useEffect(() => {
+    if (!user) return;
+
+    const raw = localStorage.getItem(getCreateStateKey(user.id));
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        occasion?: string;
+        outfitSuggestions?: Array<{
+          name: string;
+          description: string;
+          itemIds: string[];
+          tryOnImageUrl?: string;
+        }>;
+        insufficientWardrobe?: { insufficient: boolean; missingItems: string[] } | null;
+      };
+
+      if (typeof parsed.occasion === 'string') setOccasion(parsed.occasion);
+      if (parsed.insufficientWardrobe !== undefined) setInsufficientWardrobe(parsed.insufficientWardrobe);
+      if (Array.isArray(parsed.outfitSuggestions)) setOutfitSuggestions(parsed.outfitSuggestions);
+    } catch {
+      // ignore invalid JSON
+    }
+  }, [user]);
+
+  // Re-hydrate item objects once wardrobe loads
+  useEffect(() => {
+    if (wardrobeItems.length === 0) return;
+    setOutfitSuggestions(prev =>
+      prev.map(o => ({
+        ...o,
+        items: o.itemIds
+          .map(id => wardrobeItems.find(item => item.id === id))
+          .filter(Boolean) as ClothingItem[],
+      }))
+    );
+  }, [wardrobeItems]);
+
+  // Save state on every change (store only serializable fields)
+  useEffect(() => {
+    if (!user) return;
+
+    localStorage.setItem(
+      getCreateStateKey(user.id),
+      JSON.stringify({
+        occasion,
+        insufficientWardrobe,
+        outfitSuggestions: outfitSuggestions.map(({ name, description, itemIds, tryOnImageUrl }) => ({
+          name,
+          description,
+          itemIds,
+          tryOnImageUrl,
+        })),
+        updatedAt: Date.now(),
+      })
+    );
+  }, [user, occasion, insufficientWardrobe, outfitSuggestions]);
+
   // Load user's avatar for try-on (check localStorage first for persisted photo)
   useEffect(() => {
     if (!user) return;
