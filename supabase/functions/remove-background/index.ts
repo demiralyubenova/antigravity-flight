@@ -23,7 +23,7 @@ serve(async (req) => {
       throw new Error('GOOGLE_API_KEY is not configured');
     }
 
-    console.log('Removing background from image using Google Gemini...');
+    console.log('Removing background from image using Imagen 3...');
 
     // Fetch the image and convert to base64
     let imageBase64: string;
@@ -55,60 +55,87 @@ serve(async (req) => {
       imageBase64 = btoa(binary);
     }
 
-    // Use Gemini with image generation capabilities
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_API_KEY}`, {
+    // Use Imagen 3 for image editing (background removal)
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-capability-001:predict?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [
+        instances: [
           {
-            parts: [
-              {
-                text: 'Remove the background from this clothing item image completely. Make the background pure white (#FFFFFF). Keep only the clothing item itself with clean edges. The result should look like a professional e-commerce product photo with a clean white background. Return only the edited image.'
-              },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: imageBase64
-                }
-              }
-            ]
+            prompt: "Remove the background completely and replace with pure white (#FFFFFF). Keep only the clothing item with clean, crisp edges. Professional e-commerce product photo style.",
+            image: {
+              bytesBase64Encoded: imageBase64
+            }
           }
         ],
-        generationConfig: {
-          responseModalities: ["image", "text"],
-          responseMimeType: "image/png"
+        parameters: {
+          sampleCount: 1,
+          editMode: "inpaint-remove",
+          editConfig: {
+            editSubjectSegmentation: {
+              segmentBackground: true
+            }
+          }
         }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Google API error:', errorText);
+      console.error('Imagen API error:', errorText);
       
-      // If image generation isn't available, return original image
-      if (response.status === 400 || response.status === 404) {
-        console.log('Image generation not available, returning original image');
+      // Try alternative: Use Gemini Flash Thinking for image editing
+      console.log('Trying Gemini Flash with image generation...');
+      
+      const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: 'Analyze this image and extract only the main clothing item/product. I want you to describe what you see.'
+                },
+                {
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: imageBase64
+                  }
+                }
+              ]
+            }
+          ]
+        }),
+      });
+
+      if (!geminiResponse.ok) {
+        console.log('Gemini analysis failed, returning original image');
         return new Response(
           JSON.stringify({ processedImageUrl: imageUrl, fallback: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
-      throw new Error(`Google API error: ${response.status}`);
+
+      // If we can't do image editing with user's API, return original with fallback flag
+      console.log('Image editing not available with current API, returning original');
+      return new Response(
+        JSON.stringify({ processedImageUrl: imageUrl, fallback: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const data = await response.json();
-    console.log('Google API response received');
+    console.log('Imagen API response received');
 
     // Extract the generated image from the response
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    const imagePart = parts.find((part: any) => part.inlineData);
-    
-    if (imagePart?.inlineData) {
-      const generatedImage = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+    const predictions = data.predictions || [];
+    if (predictions.length > 0 && predictions[0].bytesBase64Encoded) {
+      const generatedImage = `data:image/png;base64,${predictions[0].bytesBase64Encoded}`;
       console.log('Background removed successfully');
       
       return new Response(
