@@ -122,7 +122,7 @@ export default function Create() {
     }
 
     setLoading(true);
-    setOutfitSuggestions([]);
+    // Don't clear suggestions - keep them visible while loading new ones
     setTryOnLoading(new Set());
     setInsufficientWardrobe(null);
 
