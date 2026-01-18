@@ -8,7 +8,9 @@ const corsHeaders = {
 
 interface ClothingItemInput {
   imageUrl: string;
-  type: string;
+  type?: string;
+  name?: string;
+  category?: string;
 }
 
 serve(async (req) => {
@@ -30,75 +32,72 @@ serve(async (req) => {
       throw new Error('Person image and at least one clothing item are required');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
+    if (!GOOGLE_API_KEY) {
+      throw new Error('GOOGLE_API_KEY is not configured');
     }
 
-    console.log('Starting virtual try-on with:', { 
-      personImageUrl: personImageUrl.substring(0, 50), 
-      itemCount: items.length,
-      itemTypes: items.map(i => i.type)
+    console.log('Starting virtual try-on with', items.length, 'items');
+
+    // Build description of all items
+    const clothingDescription = items.map((item, index) => {
+      const name = item.name || item.type || `Item ${index + 1}`;
+      const category = item.category || 'clothing';
+      return `${name} (${category})`;
+    }).join(', ');
+
+    // Build the prompt
+    const prompt = `You are a virtual try-on AI. Create a photorealistic image of the person wearing ALL of these clothing items: ${clothingDescription}.
+
+IMPORTANT INSTRUCTIONS:
+1. Keep the person's face, body shape, and pose EXACTLY as in the original photo
+2. Replace their current clothing with the provided clothing items
+3. Ensure proper fit and natural draping of the clothes on their body
+4. Maintain realistic lighting and shadows consistent with the original photo
+5. Layer items appropriately (e.g., jacket over shirt)
+6. The result should look like an actual photograph, not a collage
+
+Generate the final try-on image.`;
+
+    // Prepare the content parts with all images
+    const parts: any[] = [{ text: prompt }];
+    
+    // Add person image
+    const personImageBase64 = await fetchImageAsBase64(personImageUrl);
+    parts.push({
+      inlineData: {
+        mimeType: 'image/jpeg',
+        data: personImageBase64,
+      },
     });
 
-    // Build the clothing description
-    const clothingDescription = items.length === 1 
-      ? items[0].type 
-      : items.map(i => i.type).join(' and ');
-
-    // Build content array with person image and all clothing images
-    const contentParts: any[] = [
-      {
-        type: 'text',
-        text: `You are a virtual try-on assistant. Take the person from the first image and realistically dress them in the following clothing items: ${clothingDescription}.
-
-The clothing items are provided in the subsequent images in order.
-
-Create a photorealistic result where:
-1. The person's face, pose, and body proportions are preserved exactly
-2. ALL clothing items naturally fit their body with proper perspective and lighting
-3. The outfit items work together harmoniously - layer them correctly (e.g., jacket over shirt)
-4. Shadows and highlights match the original photo's lighting
-5. The result looks like an actual photo of the person wearing the complete outfit
-
-Generate the final image of the person wearing all the clothing items together.`,
-      },
-      {
-        type: 'image_url',
-        image_url: { url: personImageUrl },
-      },
-    ];
-
-    // Add all clothing images
+    // Add all clothing item images
     for (const item of items) {
-      contentParts.push({
-        type: 'image_url',
-        image_url: { url: item.imageUrl },
+      const clothingImageBase64 = await fetchImageAsBase64(item.imageUrl);
+      parts.push({
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: clothingImageBase64,
+        },
       });
     }
 
-    // Use AI to create virtual try-on composite
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image-preview',
-        messages: [
-          {
-            role: 'user',
-            content: contentParts,
-          },
-        ],
-        modalities: ['image', 'text'],
+        contents: [{ parts }],
+        generationConfig: {
+          responseModalities: ["image", "text"],
+        },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', errorText);
+      console.error('Google API error:', errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -106,65 +105,31 @@ Generate the final image of the person wearing all the clothing items together.`
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI credits exhausted. Please add funds.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
       
-      throw new Error(`AI Gateway error: ${response.status}`);
+      throw new Error(`Google API error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('AI response structure:', JSON.stringify(data, null, 2).substring(0, 500));
+    console.log('AI response received');
 
-    // Try multiple possible response structures for image data
-    let tryOnImageUrl: string | undefined;
+    // Extract the generated image
+    let tryOnImageUrl = null;
+    const parts_response = data.candidates?.[0]?.content?.parts;
     
-    const choice = data.choices?.[0];
-    if (choice?.message) {
-      // Check for inline_data format (base64)
-      const parts = choice.message.content;
-      if (Array.isArray(parts)) {
-        for (const part of parts) {
-          if (part.inline_data?.data) {
-            // Convert base64 to data URL
-            const mimeType = part.inline_data.mime_type || 'image/png';
-            tryOnImageUrl = `data:${mimeType};base64,${part.inline_data.data}`;
-            break;
-          }
-          if (part.image_url?.url) {
-            tryOnImageUrl = part.image_url.url;
-            break;
-          }
+    if (parts_response) {
+      for (const part of parts_response) {
+        if (part.inlineData?.data) {
+          tryOnImageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+          break;
         }
-      }
-      
-      // Check for images array
-      if (!tryOnImageUrl && choice.message.images?.[0]) {
-        const img = choice.message.images[0];
-        if (img.image_url?.url) {
-          tryOnImageUrl = img.image_url.url;
-        } else if (img.url) {
-          tryOnImageUrl = img.url;
-        } else if (typeof img === 'string') {
-          tryOnImageUrl = img;
-        }
-      }
-      
-      // Check for image field directly
-      if (!tryOnImageUrl && choice.message.image) {
-        tryOnImageUrl = choice.message.image;
       }
     }
 
     if (!tryOnImageUrl) {
-      console.error('Full AI response:', JSON.stringify(data));
-      throw new Error('No try-on image returned from AI. The model may not support image generation for this request.');
+      throw new Error('No try-on image returned from AI');
     }
 
-    console.log('Try-on image generated successfully with', items.length, 'items');
+    console.log('Virtual try-on completed successfully');
 
     return new Response(
       JSON.stringify({ tryOnImageUrl }),
@@ -179,3 +144,17 @@ Generate the final image of the person wearing all the clothing items together.`
     );
   }
 });
+
+async function fetchImageAsBase64(url: string): Promise<string> {
+  if (url.startsWith('data:')) {
+    return url.split(',')[1];
+  }
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}

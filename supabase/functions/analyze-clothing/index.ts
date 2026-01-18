@@ -18,78 +18,54 @@ serve(async (req) => {
       throw new Error('Image URL is required');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
+    if (!GOOGLE_API_KEY) {
+      throw new Error('GOOGLE_API_KEY is not configured');
     }
 
     console.log('Analyzing clothing image...');
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
+        contents: [
           {
-            role: 'user',
-            content: [
+            parts: [
               {
-                type: 'text',
-                text: `Analyze this clothing item image and extract the following information. Be concise and accurate.`,
+                text: `Analyze this clothing item image and extract the following information in JSON format:
+{
+  "name": "A short descriptive name for the item (e.g., 'Black Diesel Hoodie', 'Blue Denim Jeans')",
+  "category": "One of: tops, bottoms, dresses, outerwear, shoes, accessories",
+  "color": "The primary color of the item (e.g., 'Black', 'Navy Blue', 'White')",
+  "brand": "The brand name if visible on the item, or empty string if not visible"
+}
+
+Return ONLY the JSON object, no other text.`,
               },
               {
-                type: 'image_url',
-                image_url: {
-                  url: imageUrl,
+                inlineData: {
+                  mimeType: 'image/jpeg',
+                  data: imageUrl.startsWith('data:') 
+                    ? imageUrl.split(',')[1] 
+                    : await fetchImageAsBase64(imageUrl),
                 },
               },
             ],
           },
         ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'extract_clothing_info',
-              description: 'Extract clothing item details from the image',
-              parameters: {
-                type: 'object',
-                properties: {
-                  name: {
-                    type: 'string',
-                    description: 'A short descriptive name for the item (e.g., "Black Diesel Hoodie", "Blue Denim Jeans")',
-                  },
-                  category: {
-                    type: 'string',
-                    enum: ['tops', 'bottoms', 'dresses', 'outerwear', 'shoes', 'accessories'],
-                    description: 'The category of the clothing item',
-                  },
-                  color: {
-                    type: 'string',
-                    description: 'The primary color of the item (e.g., "Black", "Navy Blue", "White")',
-                  },
-                  brand: {
-                    type: 'string',
-                    description: 'The brand name if visible on the item, or empty string if not visible',
-                  },
-                },
-                required: ['name', 'category', 'color', 'brand'],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: 'function', function: { name: 'extract_clothing_info' } },
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 500,
+        },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', errorText);
+      console.error('Google API error:', errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -97,26 +73,25 @@ serve(async (req) => {
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI credits exhausted. Please add funds.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
       
-      throw new Error(`AI Gateway error: ${response.status}`);
+      throw new Error(`Google API error: ${response.status}`);
     }
 
     const data = await response.json();
     console.log('AI response:', JSON.stringify(data));
 
-    // Extract the tool call arguments
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
+    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!textContent) {
       throw new Error('No clothing analysis returned from AI');
     }
 
-    const clothingInfo = JSON.parse(toolCall.function.arguments);
+    // Parse the JSON from the response
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No valid JSON in response');
+    }
+
+    const clothingInfo = JSON.parse(jsonMatch[0]);
     console.log('Extracted clothing info:', clothingInfo);
 
     return new Response(
@@ -132,3 +107,14 @@ serve(async (req) => {
     );
   }
 });
+
+async function fetchImageAsBase64(url: string): Promise<string> {
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}

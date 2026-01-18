@@ -18,9 +18,9 @@ serve(async (req) => {
       throw new Error('Person image and at least one clothing item are required');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
+    if (!GOOGLE_API_KEY) {
+      throw new Error('GOOGLE_API_KEY is not configured');
     }
 
     // Build the prompt with all clothing items
@@ -30,11 +30,7 @@ serve(async (req) => {
 
     console.log('Creating outfit try-on with items:', itemDescriptions);
 
-    // Build content array with person image and all clothing images
-    const content: any[] = [
-      {
-        type: 'text',
-        text: `You are a virtual try-on assistant. Dress the person in the first image with ALL the clothing items shown in the subsequent images. 
+    const prompt = `You are a virtual try-on assistant. Dress the person in the first image with ALL the clothing items shown in the subsequent images. 
 
 The outfit consists of: ${itemDescriptions}
 
@@ -45,38 +41,47 @@ Create a photorealistic result where:
 4. Shadows and highlights match the original photo's lighting
 5. The result looks like an actual photo of the person wearing the complete outfit
 
-Generate the final image.`,
+Generate the final image.`;
+
+    // Build content array with person image and all clothing images
+    const parts: any[] = [{ text: prompt }];
+    
+    // Add person image
+    const personImageBase64 = await fetchImageAsBase64(personImageUrl);
+    parts.push({
+      inlineData: {
+        mimeType: 'image/jpeg',
+        data: personImageBase64,
       },
-      {
-        type: 'image_url',
-        image_url: { url: personImageUrl },
-      },
-    ];
+    });
 
     // Add each clothing item image
     for (const item of clothingItems) {
-      content.push({
-        type: 'image_url',
-        image_url: { url: item.image_url },
+      const clothingImageBase64 = await fetchImageAsBase64(item.image_url);
+      parts.push({
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: clothingImageBase64,
+        },
       });
     }
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image-preview',
-        messages: [{ role: 'user', content }],
-        modalities: ['image', 'text'],
+        contents: [{ parts }],
+        generationConfig: {
+          responseModalities: ["image", "text"],
+        },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', errorText);
+      console.error('Google API error:', errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -84,18 +89,24 @@ Generate the final image.`,
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI credits exhausted. Please add funds.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
       
-      throw new Error(`AI Gateway error: ${response.status}`);
+      throw new Error(`Google API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const tryOnImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    
+    // Extract the generated image
+    let tryOnImageUrl = null;
+    const parts_response = data.candidates?.[0]?.content?.parts;
+    
+    if (parts_response) {
+      for (const part of parts_response) {
+        if (part.inlineData?.data) {
+          tryOnImageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+    }
 
     if (!tryOnImageUrl) {
       throw new Error('No try-on image returned from AI');
@@ -116,3 +127,17 @@ Generate the final image.`,
     );
   }
 });
+
+async function fetchImageAsBase64(url: string): Promise<string> {
+  if (url.startsWith('data:')) {
+    return url.split(',')[1];
+  }
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
