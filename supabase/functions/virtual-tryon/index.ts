@@ -88,38 +88,10 @@ Clothing items to dress the person in: ${clothingDescriptions}`
 
     console.log('Calling Google Gemini for virtual try-on with items:', clothingDescriptions);
 
-    // Use gemini-2.5-flash-image for image generation
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: parts
-          }
-        ],
-        generationConfig: {
-          responseModalities: ["TEXT", "IMAGE"]
-        }
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
-      
-      if (errorText.includes('not available in your country')) {
-        return new Response(
-          JSON.stringify({ error: 'Image generation is not available in your region. Please try again later.' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      // Try fallback to gemini-2.0-flash-exp model
-      console.log('Trying fallback model gemini-2.0-flash-exp...');
-      const fallbackResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GEMINI_API_KEY}`, {
+    // Use Gemini 2.5 Flash Image ("Nano Banana") for image generation
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GEMINI_API_KEY}`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -127,23 +99,42 @@ Clothing items to dress the person in: ${clothingDescriptions}`
         body: JSON.stringify({
           contents: [
             {
-              parts: parts
-            }
+              parts,
+            },
           ],
           generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"]
-          }
+            responseModalities: ['TEXT', 'IMAGE'],
+          },
         }),
-      });
-      
-      if (!fallbackResponse.ok) {
-        const fallbackError = await fallbackResponse.text();
-        console.error('Fallback also failed:', fallbackResponse.status, fallbackError);
-        throw new Error('Image generation failed. The model may not support image generation.');
       }
-      
-      const fallbackData = await fallbackResponse.json();
-      return processGeminiResponse(fallbackData, corsHeaders);
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini API error:', response.status, errorText);
+
+      if (errorText.includes('not available in your country')) {
+        return new Response(
+          JSON.stringify({ error: 'Image generation is not available in your region. Please try again later.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (response.status === 404) {
+        return new Response(
+          JSON.stringify({
+            error:
+              'Image generation model "gemini-2.5-flash-image" is not available for this API key (404). Enable Gemini image generation in your Google project or use a key with access.',
+            details: errorText,
+          }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ error: 'Image generation request failed.', details: errorText }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const data = await response.json();
@@ -167,8 +158,12 @@ function processGeminiResponse(data: any, corsHeaders: Record<string, string>): 
     const content = candidates[0].content;
     if (content && content.parts) {
       for (const part of content.parts) {
-        if (part.inline_data) {
-          const tryOnImageUrl = `data:${part.inline_data.mime_type};base64,${part.inline_data.data}`;
+        const inline = part.inline_data ?? part.inlineData;
+        const mimeType = inline?.mime_type ?? inline?.mimeType;
+        const b64 = inline?.data;
+
+        if (mimeType && b64) {
+          const tryOnImageUrl = `data:${mimeType};base64,${b64}`;
           console.log('Virtual try-on completed successfully');
           return new Response(
             JSON.stringify({ tryOnImageUrl }),
