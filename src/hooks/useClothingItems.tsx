@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { ClothingItem, ClothingCategory } from '@/types/wardrobe';
+import { ClothingItem, ClothingCategory, ClothingSubcategory } from '@/types/wardrobe';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 
@@ -32,7 +32,7 @@ export function useClothingItems(category?: ClothingCategory | 'all') {
   });
 
   const addItem = useMutation({
-    mutationFn: async (item: Omit<ClothingItem, 'id' | 'user_id' | 'created_at' | 'updated_at'> & { price?: number }) => {
+    mutationFn: async (item: Omit<ClothingItem, 'id' | 'user_id' | 'created_at' | 'updated_at'> & { price?: number; subcategory?: ClothingSubcategory }) => {
       if (!user) throw new Error('Not authenticated');
       
       const { data, error } = await supabase
