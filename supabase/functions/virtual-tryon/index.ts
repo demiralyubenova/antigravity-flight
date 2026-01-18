@@ -6,16 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface ClothingItemInput {
+  imageUrl: string;
+  type: string;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { personImageUrl, clothingImageUrl, clothingType } = await req.json();
+    const body = await req.json();
+    const { personImageUrl, clothingItems } = body;
+    
+    // Support legacy single-item format
+    const items: ClothingItemInput[] = clothingItems || (body.clothingImageUrl ? [{
+      imageUrl: body.clothingImageUrl,
+      type: body.clothingType || 'clothing'
+    }] : []);
 
-    if (!personImageUrl || !clothingImageUrl) {
-      throw new Error('Both person image and clothing image URLs are required');
+    if (!personImageUrl || items.length === 0) {
+      throw new Error('Person image and at least one clothing item are required');
     }
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -23,7 +35,47 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    console.log('Starting virtual try-on with:', { personImageUrl: personImageUrl.substring(0, 50), clothingType });
+    console.log('Starting virtual try-on with:', { 
+      personImageUrl: personImageUrl.substring(0, 50), 
+      itemCount: items.length,
+      itemTypes: items.map(i => i.type)
+    });
+
+    // Build the clothing description
+    const clothingDescription = items.length === 1 
+      ? items[0].type 
+      : items.map(i => i.type).join(' and ');
+
+    // Build content array with person image and all clothing images
+    const contentParts: any[] = [
+      {
+        type: 'text',
+        text: `You are a virtual try-on assistant. Take the person from the first image and realistically dress them in the following clothing items: ${clothingDescription}.
+
+The clothing items are provided in the subsequent images in order.
+
+Create a photorealistic result where:
+1. The person's face, pose, and body proportions are preserved exactly
+2. ALL clothing items naturally fit their body with proper perspective and lighting
+3. The outfit items work together harmoniously - layer them correctly (e.g., jacket over shirt)
+4. Shadows and highlights match the original photo's lighting
+5. The result looks like an actual photo of the person wearing the complete outfit
+
+Generate the final image of the person wearing all the clothing items together.`,
+      },
+      {
+        type: 'image_url',
+        image_url: { url: personImageUrl },
+      },
+    ];
+
+    // Add all clothing images
+    for (const item of items) {
+      contentParts.push({
+        type: 'image_url',
+        image_url: { url: item.imageUrl },
+      });
+    }
 
     // Use AI to create virtual try-on composite
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -37,32 +89,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `You are a virtual try-on assistant. Take the person from the first image and realistically dress them in the clothing item (${clothingType || 'clothing'}) from the second image. 
-
-Create a photorealistic result where:
-1. The person's face, pose, and body proportions are preserved exactly
-2. The clothing item naturally fits their body with proper perspective and lighting
-3. Shadows and highlights match the original photo's lighting
-4. The result looks like an actual photo of the person wearing that item
-
-Generate the final image of the person wearing the clothing.`,
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: personImageUrl,
-                },
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: clothingImageUrl,
-                },
-              },
-            ],
+            content: contentParts,
           },
         ],
         modalities: ['image', 'text'],
@@ -137,7 +164,7 @@ Generate the final image of the person wearing the clothing.`,
       throw new Error('No try-on image returned from AI. The model may not support image generation for this request.');
     }
 
-    console.log('Try-on image generated successfully');
+    console.log('Try-on image generated successfully with', items.length, 'items');
 
     return new Response(
       JSON.stringify({ tryOnImageUrl }),

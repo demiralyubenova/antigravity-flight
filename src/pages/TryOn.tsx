@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useMemo, type ChangeEvent } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Camera, Upload, Sparkles, X, Loader2, Save, History, Trash2, Search } from 'lucide-react';
+import { Camera, Upload, Sparkles, X, Loader2, Save, History, Trash2, Search, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { useClothingItems } from '@/hooks/useClothingItems';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +26,7 @@ export default function TryOn() {
   const { items } = useClothingItems('all');
   const [personImage, setPersonImage] = useState<string | null>(null);
   const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(null);
-  const [selectedItem, setSelectedItem] = useState<ClothingItem | null>(null);
+  const [selectedItems, setSelectedItems] = useState<ClothingItem[]>([]);
   const [tryOnResult, setTryOnResult] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
@@ -69,6 +70,25 @@ export default function TryOn() {
   const handleCategoryChange = (category: ClothingCategory | 'all') => {
     setActiveCategory(category);
     setActiveSubcategory('all');
+  };
+
+  // Toggle item selection
+  const toggleItemSelection = (item: ClothingItem) => {
+    setSelectedItems(prev => {
+      const isSelected = prev.some(i => i.id === item.id);
+      if (isSelected) {
+        return prev.filter(i => i.id !== item.id);
+      } else {
+        // Limit to 4 items max for performance
+        if (prev.length >= 4) {
+          toast({ title: 'Maximum 4 items', description: 'Remove an item to add another', variant: 'destructive' });
+          return prev;
+        }
+        return [...prev, item];
+      }
+    });
+    setTryOnResult(null);
+    setSelectedSavedResult(null);
   };
 
   // Load saved avatar and try-on history on mount
@@ -169,7 +189,7 @@ export default function TryOn() {
   };
 
   const saveTryOnResult = async (resultBase64: string): Promise<string | null> => {
-    if (!user || !selectedItem) return null;
+    if (!user || selectedItems.length === 0) return null;
 
     try {
       // Convert base64 to blob and upload to storage
@@ -188,13 +208,13 @@ export default function TryOn() {
         .from('try-on-results')
         .getPublicUrl(fileName);
 
-      // Save to database with storage URL
+      // Save to database with storage URL (using first item for compatibility)
       const { data, error } = await supabase
         .from('try_on_results')
         .insert({
           user_id: user.id,
           person_image_url: savedAvatarUrl || '',
-          clothing_item_id: selectedItem.id,
+          clothing_item_id: selectedItems[0].id,
           result_image_url: publicUrl,
         })
         .select()
@@ -214,17 +234,21 @@ export default function TryOn() {
   };
 
   const handleTryOn = async () => {
-    if (!personImage || !selectedItem) return;
+    if (!personImage || selectedItems.length === 0) return;
 
     setProcessing(true);
     setSelectedSavedResult(null);
     
     try {
+      const clothingItems = selectedItems.map(item => ({
+        imageUrl: item.image_url,
+        type: CATEGORY_LABELS[item.category],
+      }));
+
       const { data, error } = await supabase.functions.invoke('virtual-tryon', {
         body: {
           personImageUrl: personImage,
-          clothingImageUrl: selectedItem.image_url,
-          clothingType: CATEGORY_LABELS[selectedItem.category],
+          clothingItems,
         },
       });
 
@@ -282,7 +306,7 @@ export default function TryOn() {
     // Find and select the matching clothing item
     const matchingItem = items.find(item => item.id === result.clothing_item_id);
     if (matchingItem) {
-      setSelectedItem(matchingItem);
+      setSelectedItems([matchingItem]);
     }
   };
 
@@ -293,6 +317,12 @@ export default function TryOn() {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const clearSelectedItems = () => {
+    setSelectedItems([]);
+    setTryOnResult(null);
+    setSelectedSavedResult(null);
   };
 
   const isNewPhoto = personImage && personImage !== savedAvatarUrl && personImage.startsWith('data:');
@@ -453,7 +483,14 @@ export default function TryOn() {
         {/* Select Clothing Card */}
         <Card className="border-0 shadow-elegant">
           <CardContent className="p-5">
-            <h3 className="font-display text-lg font-medium tracking-tight mb-4">Select Clothing</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-lg font-medium tracking-tight">Select Outfit</h3>
+              {selectedItems.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearSelectedItems} className="text-muted-foreground">
+                  Clear ({selectedItems.length})
+                </Button>
+              )}
+            </div>
             
             {items.length === 0 ? (
               <div className="aspect-[3/4] max-w-xs mx-auto rounded-2xl border border-border bg-muted/30 flex items-center justify-center">
@@ -465,6 +502,35 @@ export default function TryOn() {
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Selected items preview */}
+                {selectedItems.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Selected items:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedItems.map((item) => (
+                        <Badge 
+                          key={item.id} 
+                          variant="secondary" 
+                          className="gap-1.5 py-1.5 pl-1.5 pr-2"
+                        >
+                          <img 
+                            src={item.image_url} 
+                            alt={item.name} 
+                            className="w-6 h-6 rounded object-cover"
+                          />
+                          <span className="max-w-[100px] truncate">{item.name}</span>
+                          <button 
+                            onClick={() => toggleItemSelection(item)}
+                            className="ml-1 hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Search bar */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -542,53 +608,40 @@ export default function TryOn() {
                   </ScrollArea>
                 )}
 
-                {/* Selected item preview */}
-                {selectedItem && (
-                  <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-2xl overflow-hidden bg-muted border-2 border-primary">
-                    <img
-                      src={selectedItem.image_url}
-                      alt={selectedItem.name}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/95 via-background/70 to-transparent p-4">
-                      <p className="font-display font-medium">{selectedItem.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {CATEGORY_LABELS[selectedItem.category]}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
                 {/* Clothing grid */}
                 <div>
                   <p className="text-sm text-muted-foreground mb-3">
                     {filteredItems.length === 0 
                       ? 'No items found' 
-                      : `Choose from ${filteredItems.length} item${filteredItems.length !== 1 ? 's' : ''}`}
+                      : `Tap to select multiple items (max 4)`}
                   </p>
                   <div className="grid grid-cols-4 gap-3">
-                    {filteredItems.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          setSelectedItem(item);
-                          setTryOnResult(null);
-                          setSelectedSavedResult(null);
-                        }}
-                        className={cn(
-                          "aspect-square rounded-xl overflow-hidden border-2 transition-all shadow-sm",
-                          selectedItem?.id === item.id
-                            ? "border-primary ring-2 ring-primary/20"
-                            : "border-border hover:border-primary/40"
-                        )}
-                      >
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
+                    {filteredItems.map((item) => {
+                      const isSelected = selectedItems.some(i => i.id === item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => toggleItemSelection(item)}
+                          className={cn(
+                            "relative aspect-square rounded-xl overflow-hidden border-2 transition-all shadow-sm",
+                            isSelected
+                              ? "border-primary ring-2 ring-primary/20"
+                              : "border-border hover:border-primary/40"
+                          )}
+                        >
+                          <img
+                            src={item.image_url}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                          />
+                          {isSelected && (
+                            <div className="absolute top-1 right-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center">
+                              <Check className="h-3 w-3 text-primary-foreground" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -597,7 +650,7 @@ export default function TryOn() {
         </Card>
 
         {/* Try On Button */}
-        {personImage && selectedItem && !selectedSavedResult && (
+        {personImage && selectedItems.length > 0 && !selectedSavedResult && (
           <div className="flex justify-center py-4">
             <Button
               onClick={handleTryOn}
@@ -613,7 +666,7 @@ export default function TryOn() {
               ) : (
                 <>
                   <Sparkles className="h-5 w-5" />
-                  Try It On
+                  Try On {selectedItems.length} Item{selectedItems.length !== 1 ? 's' : ''}
                 </>
               )}
             </Button>
