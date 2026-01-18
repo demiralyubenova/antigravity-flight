@@ -18,130 +18,81 @@ serve(async (req) => {
       throw new Error('Image URL is required');
     }
 
-    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
-    if (!GOOGLE_API_KEY) {
-      throw new Error('GOOGLE_API_KEY is not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    console.log('Removing background from image using Gemini...');
+    console.log('Removing background from image using Lovable AI...');
 
-    // Fetch the image and convert to base64
-    let imageBase64: string;
-    let mimeType: string = 'image/jpeg';
+    // Fetch the image and convert to base64 data URL
+    let imageDataUrl: string;
     
     if (imageUrl.startsWith('data:')) {
-      const matches = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
-      if (matches) {
-        mimeType = matches[1];
-        imageBase64 = matches[2];
-      } else {
-        throw new Error('Invalid data URL format');
-      }
+      imageDataUrl = imageUrl;
     } else {
       const imageResponse = await fetch(imageUrl);
       if (!imageResponse.ok) {
         throw new Error('Failed to fetch image');
       }
-      const contentType = imageResponse.headers.get('content-type');
-      if (contentType) {
-        mimeType = contentType.split(';')[0];
-      }
+      const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+      const mimeType = contentType.split(';')[0];
       const arrayBuffer = await imageResponse.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
       let binary = '';
       for (let i = 0; i < uint8Array.length; i++) {
         binary += String.fromCharCode(uint8Array[i]);
       }
-      imageBase64 = btoa(binary);
+      const imageBase64 = btoa(binary);
+      imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
     }
 
-    // Use Gemini 2.0 Flash Exp with image generation capabilities
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_API_KEY}`, {
+    // Use Lovable AI image editing with Gemini
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: 'Remove the background from this image completely. Replace the background with pure white (#FFFFFF). Keep only the main subject (the clothing item, shoe, or accessory) with clean, crisp edges. The result should look like a professional e-commerce product photo with a clean white background. Output only the edited image.'
-              },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: imageBase64
-                }
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          responseModalities: ["TEXT", "IMAGE"]
-        }
+        model: 'google/gemini-2.5-flash-image-preview',
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Remove the background from this image completely. Replace the background with pure white (#FFFFFF). Keep only the main subject (the clothing item, shoe, or accessory) with clean, crisp edges. The result should look like a professional e-commerce product photo with a clean white background.'
+            },
+            {
+              type: 'image_url',
+              image_url: { url: imageDataUrl }
+            }
+          ]
+        }],
+        modalities: ['image', 'text']
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Gemini API error:', errorText);
+      console.error('Lovable AI error:', errorText);
       
-      // Try with alternative model name
-      console.log('Trying alternative model gemini-2.0-flash-exp...');
-      
-      const altResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_API_KEY}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: 'Edit this image: Remove the background completely and replace it with pure white (#FFFFFF). Keep only the clothing item/product with clean edges. Return the edited image.'
-                },
-                {
-                  inlineData: {
-                    mimeType: mimeType,
-                    data: imageBase64
-                  }
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"]
-          }
-        }),
-      });
-
-      if (!altResponse.ok) {
-        const altErrorText = await altResponse.text();
-        console.error('Alternative model error:', altErrorText);
-        console.log('Returning original image as fallback');
+      if (response.status === 429) {
+        console.log('Rate limited, returning original image');
         return new Response(
-          JSON.stringify({ processedImageUrl: imageUrl, fallback: true }),
+          JSON.stringify({ processedImageUrl: imageUrl, fallback: true, error: 'Rate limit exceeded' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
-      const altData = await altResponse.json();
-      const altParts = altData.candidates?.[0]?.content?.parts || [];
-      const altImagePart = altParts.find((part: any) => part.inlineData);
-      
-      if (altImagePart?.inlineData) {
-        const generatedImage = `data:${altImagePart.inlineData.mimeType || 'image/png'};base64,${altImagePart.inlineData.data}`;
-        console.log('Background removed successfully with alternative model');
-        
+      if (response.status === 402) {
+        console.log('Credits exhausted, returning original image');
         return new Response(
-          JSON.stringify({ processedImageUrl: generatedImage }),
+          JSON.stringify({ processedImageUrl: imageUrl, fallback: true, error: 'AI credits exhausted' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
-      console.log('No image in alternative response, returning original');
+      
+      console.log('Returning original image as fallback');
       return new Response(
         JSON.stringify({ processedImageUrl: imageUrl, fallback: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -149,18 +100,15 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('Gemini API response received');
+    console.log('Lovable AI response received');
 
     // Extract the generated image from the response
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    const imagePart = parts.find((part: any) => part.inlineData);
+    const generatedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     
-    if (imagePart?.inlineData) {
-      const generatedImage = `data:${imagePart.inlineData.mimeType || 'image/png'};base64,${imagePart.inlineData.data}`;
+    if (generatedImageUrl) {
       console.log('Background removed successfully');
-      
       return new Response(
-        JSON.stringify({ processedImageUrl: generatedImage }),
+        JSON.stringify({ processedImageUrl: generatedImageUrl }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
