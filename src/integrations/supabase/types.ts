@@ -65,6 +65,45 @@ export type Database = {
         }
         Relationships: []
       }
+      outfit_feedback: {
+        Row: {
+          created_at: string
+          formality_feedback: string | null
+          id: string
+          more_like_this: boolean | null
+          notes: string | null
+          occasion: string | null
+          outfit_item_ids: string[]
+          rating: string | null
+          temperature_feedback: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          formality_feedback?: string | null
+          id?: string
+          more_like_this?: boolean | null
+          notes?: string | null
+          occasion?: string | null
+          outfit_item_ids: string[]
+          rating?: string | null
+          temperature_feedback?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          formality_feedback?: string | null
+          id?: string
+          more_like_this?: boolean | null
+          notes?: string | null
+          occasion?: string | null
+          outfit_item_ids?: string[]
+          rating?: string | null
+          temperature_feedback?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       outfits: {
         Row: {
           color_palette: string[] | null

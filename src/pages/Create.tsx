@@ -13,7 +13,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { WeatherOutfits } from '@/components/weather/WeatherOutfits';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
+import { OutfitFeedback } from '@/components/outfit/OutfitFeedback';
+import { useOutfitFeedback } from '@/hooks/useOutfitFeedback';
 interface OutfitSuggestion {
   name: string;
   description: string;
@@ -97,6 +98,8 @@ export default function Create() {
     'Night Out',
   ];
 
+  const { getFeedbackSummary } = useOutfitFeedback();
+
   const handleGenerateOutfits = async () => {
     if (!occasion) {
       toast({ title: 'Enter an occasion first', variant: 'destructive' });
@@ -113,6 +116,9 @@ export default function Create() {
     setTryOnResults({});
     setInsufficientWardrobe(null);
 
+    // Get feedback summary for AI context
+    const feedbackSummary = getFeedbackSummary();
+
     try {
       const { data, error } = await supabase.functions.invoke('generate-outfits', {
         body: {
@@ -128,6 +134,7 @@ export default function Create() {
             worn_at: outfit.worn_at,
             items: outfit.items?.map((i: ClothingItem) => ({ name: i.name })),
           })),
+          userFeedback: feedbackSummary,
         },
       });
 
@@ -537,6 +544,12 @@ export default function Create() {
                         Plan
                       </Button>
                     </div>
+
+                    {/* Feedback Section */}
+                    <OutfitFeedback 
+                      outfitItemIds={outfit.itemIds} 
+                      occasion={occasion}
+                    />
                   </CardContent>
                 </Card>
               ))}
