@@ -72,9 +72,9 @@ export function AuthForm() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-background">
+    <div className="min-h-screen flex flex-col md:flex-row bg-background">
       {/* Left Side - Orbiting Animation */}
-      <div className="hidden lg:flex lg:w-1/2 relative items-center justify-center bg-muted/30 overflow-hidden">
+      <div className="hidden md:flex md:w-1/2 relative items-center justify-center bg-muted/30 overflow-hidden">
         <Ripple mainCircleSize={180} numCircles={8} mainCircleOpacity={0.15} />
         <div className="relative z-10 w-full h-[600px]">
           <ClothingOrbitDisplay text="The Atelier" />
@@ -82,14 +82,16 @@ export function AuthForm() {
       </div>
 
       {/* Right Side - Auth Form */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
+      <div className="flex-1 flex items-center justify-center p-6 md:p-12">
         <div className="w-full max-w-md">
-          {/* Mobile Logo */}
-          <div className="lg:hidden text-center mb-8">
-            <h1 className="font-display text-4xl font-medium tracking-tight mb-2">
-              The Atelier
-            </h1>
-            <p className="text-muted-foreground">Your AI-powered wardrobe</p>
+          {/* Mobile Logo with mini orbit */}
+          <div className="md:hidden text-center mb-6">
+            <div className="relative h-48 mb-4">
+              <Ripple mainCircleSize={80} numCircles={5} mainCircleOpacity={0.15} />
+              <div className="relative z-10 w-full h-full">
+                <ClothingOrbitDisplay text="The Atelier" />
+              </div>
+            </div>
           </div>
 
           <AnimatedForm
