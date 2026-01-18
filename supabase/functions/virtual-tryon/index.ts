@@ -88,8 +88,8 @@ Clothing items to dress the person in: ${clothingDescriptions}`
 
     console.log('Calling Google Gemini for virtual try-on with items:', clothingDescriptions);
 
-    // Use gemini-2.0-flash with image generation capability
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`, {
+    // Use gemini-2.5-flash-image for image generation
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -117,9 +117,9 @@ Clothing items to dress the person in: ${clothingDescriptions}`
         );
       }
       
-      // Try fallback to experimental model
-      console.log('Trying fallback model...');
-      const fallbackResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-exp-image-generation:generateContent?key=${GEMINI_API_KEY}`, {
+      // Try fallback to gemini-2.0-flash-exp model
+      console.log('Trying fallback model gemini-2.0-flash-exp...');
+      const fallbackResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
