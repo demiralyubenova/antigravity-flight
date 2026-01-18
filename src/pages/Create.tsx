@@ -38,11 +38,19 @@ export default function Create() {
   const [wornOutfits, setWornOutfits] = useState<Set<number>>(new Set());
   const [savingOutfit, setSavingOutfit] = useState<number | null>(null);
 
-  // Load user's avatar for try-on
+  // Load user's avatar for try-on (check localStorage first for persisted photo)
   useEffect(() => {
     if (!user) return;
     
     const loadAvatar = async () => {
+      // Check localStorage first (same key as Try On page)
+      const persistedPhoto = localStorage.getItem(`tryon_photo_${user.id}`);
+      if (persistedPhoto) {
+        setPersonImage(persistedPhoto);
+        return;
+      }
+
+      // Fall back to saved avatar from profile
       const { data } = await supabase
         .from('profiles')
         .select('avatar_url')
