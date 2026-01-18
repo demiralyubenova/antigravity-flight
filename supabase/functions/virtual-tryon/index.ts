@@ -32,12 +32,12 @@ serve(async (req) => {
       throw new Error('Person image and at least one clothing item are required');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+    if (!GEMINI_API_KEY) {
+      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
     }
 
-    console.log('Starting virtual try-on with', items.length, 'items using Lovable AI');
+    console.log('Starting virtual try-on with', items.length, 'items using Google Gemini');
 
     // Fetch person image as base64
     const { base64: personImageBase64, mimeType: personMimeType } = await fetchImageAsBase64WithMime(personImageUrl);
@@ -47,10 +47,9 @@ serve(async (req) => {
       `Item ${i + 1}: ${item.name || item.type || 'clothing item'} (${item.category || 'clothing'})`
     ).join(', ');
 
-    // Build content array with person image and all clothing images
-    const contentParts: any[] = [
+    // Build parts array with person image and all clothing images
+    const parts: any[] = [
       {
-        type: 'text',
         text: `Create a professional fashion photography image showing the person from the first image wearing ALL of the clothing items shown in the subsequent images. 
 
 The person should:
@@ -69,9 +68,9 @@ Style: High-quality fashion editorial photography.
 Clothing items to dress the person in: ${clothingDescriptions}`
       },
       {
-        type: 'image_url',
-        image_url: {
-          url: `data:${personMimeType};base64,${personImageBase64}`
+        inline_data: {
+          mime_type: personMimeType,
+          data: personImageBase64
         }
       }
     ];
@@ -79,86 +78,76 @@ Clothing items to dress the person in: ${clothingDescriptions}`
     // Add all clothing images
     for (const item of items) {
       const { base64, mimeType } = await fetchImageAsBase64WithMime(item.imageUrl);
-      contentParts.push({
-        type: 'image_url',
-        image_url: {
-          url: `data:${mimeType};base64,${base64}`
+      parts.push({
+        inline_data: {
+          mime_type: mimeType,
+          data: base64
         }
       });
     }
 
-    console.log('Calling Lovable AI for virtual try-on with items:', clothingDescriptions);
+    console.log('Calling Google Gemini for virtual try-on with items:', clothingDescriptions);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Use gemini-2.0-flash with image generation capability
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-pro-image-preview',
-        messages: [
+        contents: [
           {
-            role: 'user',
-            content: contentParts
+            parts: parts
           }
         ],
+        generationConfig: {
+          responseModalities: ["TEXT", "IMAGE"]
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Lovable AI error:', response.status, errorText);
+      console.error('Gemini API error:', response.status, errorText);
       
-      if (response.status === 429) {
+      if (errorText.includes('not available in your country')) {
         return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Image generation is not available in your region. Please try again later.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI credits exhausted. Please add more credits.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      // Try fallback to experimental model
+      console.log('Trying fallback model...');
+      const fallbackResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-exp-image-generation:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: parts
+            }
+          ],
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"]
+          }
+        }),
+      });
+      
+      if (!fallbackResponse.ok) {
+        const fallbackError = await fallbackResponse.text();
+        console.error('Fallback also failed:', fallbackResponse.status, fallbackError);
+        throw new Error('Image generation failed. The model may not support image generation.');
       }
       
-      throw new Error('Image generation failed. Please try again.');
+      const fallbackData = await fallbackResponse.json();
+      return processGeminiResponse(fallbackData, corsHeaders);
     }
 
     const data = await response.json();
-    console.log('Lovable AI response received');
-
-    // Extract the generated image from the response
-    const content = data.choices?.[0]?.message?.content;
-    
-    // Check if content is an array (multimodal response)
-    if (Array.isArray(content)) {
-      for (const part of content) {
-        if (part.type === 'image_url' && part.image_url?.url) {
-          console.log('Virtual try-on completed successfully');
-          return new Response(
-            JSON.stringify({ tryOnImageUrl: part.image_url.url }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-    }
-    
-    // Check for inline image data in the response
-    if (data.choices?.[0]?.message?.image) {
-      const imageData = data.choices[0].message.image;
-      const tryOnImageUrl = `data:${imageData.mime_type || 'image/png'};base64,${imageData.data}`;
-      console.log('Virtual try-on completed successfully');
-      return new Response(
-        JSON.stringify({ tryOnImageUrl }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.error('No image in response:', JSON.stringify(data));
-    throw new Error('No try-on image generated. Image generation may not be available for this model.');
+    return processGeminiResponse(data, corsHeaders);
   } catch (error) {
     console.error('Error in virtual try-on:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -168,6 +157,31 @@ Clothing items to dress the person in: ${clothingDescriptions}`
     );
   }
 });
+
+function processGeminiResponse(data: any, corsHeaders: Record<string, string>): Response {
+  console.log('Gemini response received');
+
+  // Extract the generated image from the response
+  const candidates = data.candidates;
+  if (candidates && candidates.length > 0) {
+    const content = candidates[0].content;
+    if (content && content.parts) {
+      for (const part of content.parts) {
+        if (part.inline_data) {
+          const tryOnImageUrl = `data:${part.inline_data.mime_type};base64,${part.inline_data.data}`;
+          console.log('Virtual try-on completed successfully');
+          return new Response(
+            JSON.stringify({ tryOnImageUrl }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+  }
+
+  console.error('No image in response:', JSON.stringify(data));
+  throw new Error('No try-on image generated. Image generation may not be available for this model.');
+}
 
 async function fetchImageAsBase64WithMime(url: string): Promise<{ base64: string; mimeType: string }> {
   if (url.startsWith('data:')) {
