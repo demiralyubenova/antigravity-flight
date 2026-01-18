@@ -22,9 +22,9 @@ serve(async (req) => {
       throw new Error('Wardrobe items are required');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
+    if (!GOOGLE_API_KEY) {
+      throw new Error('GOOGLE_API_KEY is not configured');
     }
 
     // Build context about recent outfits to avoid
@@ -114,24 +114,30 @@ If wardrobe lacks appropriate items, return:
 
     console.log('Generating outfit suggestions for:', occasion);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Create 3 outfit options for: ${occasion}` },
+        contents: [
+          {
+            parts: [
+              { text: systemPrompt },
+              { text: `Create 3 outfit options for: ${occasion}` },
+            ],
+          },
         ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2000,
+        },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', errorText);
+      console.error('Google API error:', errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -139,18 +145,12 @@ If wardrobe lacks appropriate items, return:
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI credits exhausted. Please add funds.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
       
-      throw new Error(`AI Gateway error: ${response.status}`);
+      throw new Error(`Google API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content;
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!reply) {
       throw new Error('No response from AI');
@@ -161,7 +161,6 @@ If wardrobe lacks appropriate items, return:
     // Parse the JSON from the response
     let outfits;
     try {
-      // Try to extract JSON from the response (it might be wrapped in markdown code blocks)
       const jsonMatch = reply.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         outfits = JSON.parse(jsonMatch[0]);

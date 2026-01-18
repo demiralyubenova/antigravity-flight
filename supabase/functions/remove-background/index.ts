@@ -18,49 +18,63 @@ serve(async (req) => {
       throw new Error('Image URL is required');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
+    if (!GOOGLE_API_KEY) {
+      throw new Error('GOOGLE_API_KEY is not configured');
     }
 
-    // Use AI to remove background
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    console.log('Removing background from image...');
+
+    // Fetch image as base64
+    const imageBase64 = await fetchImageAsBase64(imageUrl);
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image-preview',
-        messages: [
+        contents: [
           {
-            role: 'user',
-            content: [
+            parts: [
               {
-                type: 'text',
                 text: 'Remove the background from this clothing item image. Make the background completely transparent/white. Keep only the clothing item itself with clean edges. Output the result as a clean product photo with white background.',
               },
               {
-                type: 'image_url',
-                image_url: {
-                  url: imageUrl,
+                inlineData: {
+                  mimeType: 'image/jpeg',
+                  data: imageBase64,
                 },
               },
             ],
           },
         ],
-        modalities: ['image', 'text'],
+        generationConfig: {
+          responseModalities: ["image", "text"],
+        },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', errorText);
-      throw new Error(`AI Gateway error: ${response.status}`);
+      console.error('Google API error:', errorText);
+      throw new Error(`Google API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const processedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    
+    // Extract the processed image
+    let processedImageUrl = null;
+    const parts = data.candidates?.[0]?.content?.parts;
+    
+    if (parts) {
+      for (const part of parts) {
+        if (part.inlineData?.data) {
+          processedImageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+    }
 
     if (!processedImageUrl) {
       throw new Error('No processed image returned from AI');
@@ -79,3 +93,17 @@ serve(async (req) => {
     );
   }
 });
+
+async function fetchImageAsBase64(url: string): Promise<string> {
+  if (url.startsWith('data:')) {
+    return url.split(',')[1];
+  }
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
