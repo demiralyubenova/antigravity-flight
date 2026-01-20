@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Camera, Save, User, Mail, Calendar, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { DataExport } from '@/components/profile/DataExport';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -200,6 +201,9 @@ export default function Profile() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Data Export */}
+        <DataExport />
       </div>
     </AppLayout>
   );
