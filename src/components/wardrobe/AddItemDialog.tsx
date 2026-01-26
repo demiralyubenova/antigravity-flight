@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
+import { removeBackground as removeBackgroundAI } from '@/services/ai-service';
+
 interface AddItemDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -54,21 +56,18 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
     setSubcategory('');
   }, [category]);
 
-  const removeBackground = async (base64Image: string): Promise<{ processedUrl: string; file: File } | null> => {
+  const removeBackground = async (file: File): Promise<{ processedUrl: string; file: File } | null> => {
     try {
-      const { data, error } = await supabase.functions.invoke('remove-background', {
-        body: { imageUrl: base64Image },
-      });
+      // Use the local AI service instead of Supabase function
+      const base64Result = await removeBackgroundAI(file, 'CLOTHING');
 
-      if (error) throw error;
-
-      if (data.processedImageUrl) {
-        // Convert base64 to file
-        const response = await fetch(data.processedImageUrl);
+      if (base64Result) {
+        // Convert base64 to File object for uploading to Supabase storage later
+        const response = await fetch(base64Result);
         const blob = await response.blob();
         const newFile = new File([blob], 'processed.png', { type: 'image/png' });
-        
-        return { processedUrl: data.processedImageUrl, file: newFile };
+
+        return { processedUrl: base64Result, file: newFile };
       }
       return null;
     } catch (error) {
@@ -93,7 +92,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
         }
         if (data.color) setColor(data.color);
         if (data.brand) setBrand(data.brand);
-        
+
         toast({ title: 'Item analyzed!', description: 'Details auto-filled from image' });
       }
     } catch (error) {
@@ -129,19 +128,19 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
     if (!file) return;
 
     setProcessingImage(true);
-    
+
     // Normalize image orientation first (fixes upside-down mobile photos)
     const normalizedBase64 = await normalizeImageOrientation(file);
     setImagePreview(normalizedBase64); // Show normalized image immediately
-    
+
     // Run background removal and AI analysis in parallel
     toast({ title: 'Processing image...', description: 'Removing background & analyzing item' });
-    
+
     const [bgResult] = await Promise.all([
-      removeBackground(normalizedBase64),
+      removeBackground(file),
       analyzeClothing(normalizedBase64), // Auto-fill form fields
     ]);
-    
+
     if (bgResult) {
       setImagePreview(bgResult.processedUrl);
       setImageFile(bgResult.file);
@@ -152,10 +151,10 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
       const blob = await response.blob();
       const normalizedFile = new File([blob], file.name, { type: 'image/jpeg' });
       setImageFile(normalizedFile);
-      toast({ 
-        title: 'Could not remove background', 
+      toast({
+        title: 'Could not remove background',
         description: 'Using original image instead',
-        variant: 'destructive' 
+        variant: 'destructive'
       });
     }
     setProcessingImage(false);
@@ -169,7 +168,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
     try {
       // Upload image to storage
       const fileName = `${user.id}/${Date.now()}.png`;
-      
+
       const { error: uploadError } = await supabase.storage
         .from('clothing')
         .upload(fileName, imageFile);
@@ -305,8 +304,8 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
           {/* Subcategory */}
           <div>
             <Label>Type</Label>
-            <Select 
-              value={subcategory || undefined} 
+            <Select
+              value={subcategory || undefined}
               onValueChange={(v) => setSubcategory(v as ClothingSubcategory)}
             >
               <SelectTrigger className="mt-1.5">
