@@ -15,11 +15,18 @@ export const removeBackgroundService = async (filePath: string, mimeType: string
         // We look for a .venv inside the project root or the server folder
         // For simplicity, let's try to find it in the project root first if it exists, 
         // otherwise assume a local one will be created or use system python
-        const venvPython = path.resolve(process.cwd(), '../.venv/bin/python');
-        const localVenvPython = path.resolve(process.cwd(), 'python/.venv/bin/python');
+        const isWindows = process.platform === 'win32';
+
+        const venvPython = isWindows
+            ? path.resolve(process.cwd(), '../.venv/Scripts/python.exe')
+            : path.resolve(process.cwd(), '../.venv/bin/python');
+
+        const localVenvPython = isWindows
+            ? path.resolve(process.cwd(), 'python/.venv/Scripts/python.exe')
+            : path.resolve(process.cwd(), 'python/.venv/bin/python');
 
         const pythonExecutable = fs.existsSync(localVenvPython) ? localVenvPython :
-            fs.existsSync(venvPython) ? venvPython : 'python3';
+            fs.existsSync(venvPython) ? venvPython : (isWindows ? 'python' : 'python3');
 
         const absoluteFilePath = path.resolve(process.cwd(), filePath);
         const ext = mimeType.split('/')[1] || 'png';
