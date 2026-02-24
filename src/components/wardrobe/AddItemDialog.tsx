@@ -80,27 +80,96 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
 
   const analyzeClothing = async (base64Image: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-clothing', {
-        body: { imageUrl: base64Image },
-      });
+      console.log('Invoking clothing analysis...');
 
-      if (error) throw error;
+      let data: any = null;
+      let error: any = null;
+
+      // 1. Try local Python service directly first (bypasses remote Supabase Edge Function)
+      try {
+        console.log('Attempting direct local analysis...');
+        const fetchResponse = await fetch(base64Image);
+        const blob = await fetchResponse.blob();
+
+        const formData = new FormData();
+        formData.append('file', blob, 'image.jpg');
+
+        const localResponse = await fetch('http://localhost:8000/analyze', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (localResponse.ok) {
+          const result = await localResponse.json();
+          console.log('Direct local analysis successful:', result);
+          // Map local result to the expected format
+          data = {
+            name: result.name,
+            category: result.category,
+            type: result.type,
+            color: result.color,
+            confidence: result.confidence,
+            ai_description: `${result.color.charAt(0).toUpperCase() + result.color.slice(1)} ${result.type} detected with ${Math.round(result.confidence * 100)}% confidence.`
+          };
+        } else {
+          console.warn('Direct local analysis failed, falling back to edge function...');
+        }
+      } catch (localErr) {
+        console.warn('Could not reach local service directly, falling back to edge function:', localErr);
+      }
+
+      // 2. Fallback to Supabase Edge Function if direct call failed
+      if (!data) {
+        console.log('Invoking analyze-clothing edge function...');
+        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('analyze-clothing', {
+          body: { imageUrl: base64Image },
+        });
+        data = edgeData;
+        error = edgeError;
+      }
+
+      if (error) {
+        console.error('Analysis error:', error);
+        throw error;
+      }
+
+      console.log('Analysis response data:', data);
 
       if (data && !data.error) {
         // Auto-fill the form fields
         if (data.name) setName(data.name);
         if (data.category && ALL_CATEGORIES.includes(data.category)) {
           setCategory(data.category as ClothingCategory);
+          console.log('Setting category to:', data.category);
+          // Auto-fill subcategory (type) if available and matches options for this category
+          if (data.type) {
+            console.log('Detecting type match for:', data.type);
+            const typeMatch = SUBCATEGORY_OPTIONS[data.category as ClothingCategory].find(
+              opt => opt.value === data.type.toLowerCase() || opt.label.toLowerCase() === data.type.toLowerCase()
+            );
+            if (typeMatch) {
+              setSubcategory(typeMatch.value);
+              console.log('Setting subcategory to:', typeMatch.value);
+            }
+          }
         }
         if (data.color) setColor(data.color);
         if (data.brand) setBrand(data.brand);
         if (data.ai_description) setAiDescription(data.ai_description);
 
         toast({ title: 'Item analyzed!', description: 'Details auto-filled from image' });
+      } else if (data?.error) {
+        console.error('Analysis logic error:', data.error);
+        throw new Error(data.error);
       }
     } catch (error) {
       console.error('Error analyzing clothing:', error);
-      // Don't show error toast - this is optional enhancement
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast({
+        title: 'Analysis failed',
+        description: errorMessage,
+        variant: 'destructive'
+      });
     }
   };
 
@@ -147,7 +216,6 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
     if (bgResult) {
       setImagePreview(bgResult.processedUrl);
       setImageFile(bgResult.file);
-      toast({ title: 'Image processed!', description: 'Background removed & details detected' });
     } else {
       // If background removal fails, keep normalized image
       const response = await fetch(normalizedBase64);

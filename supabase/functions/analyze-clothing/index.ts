@@ -7,42 +7,81 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log('--- Analyze Clothing Request Received ---');
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { imageUrl } = await req.json();
+    console.log('Image URL received:', imageUrl?.substring(0, 50) + '...');
 
     if (!imageUrl) {
       throw new Error('Image URL is required');
     }
 
-    const VISION_SERVICE_URL = Deno.env.get('VISION_SERVICE_URL') || 'http://host.docker.internal:8000/analyze';
+    const VISION_SERVICE_URL = Deno.env.get('VISION_SERVICE_URL') || 'http://192.168.0.5:8000/analyze';
+    console.log('Using Vision Service URL:', VISION_SERVICE_URL);
 
-    console.log(`Analyzing clothing image with local Vision Service at ${VISION_SERVICE_URL}...`);
-
-    // Fetch the image
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error(`Failed to fetch image from URL: ${imageResponse.statusText}`);
+    let imageBlob: Blob;
+    if (imageUrl.startsWith('data:')) {
+      console.log('Processing data URL...');
+      const response = await fetch(imageUrl);
+      imageBlob = await response.blob();
+    } else {
+      console.log('Fetching image from URL...');
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image from URL: ${imageResponse.statusText}`);
+      }
+      imageBlob = await imageResponse.blob();
     }
-    const imageBlob = await imageResponse.blob();
+    console.log('Image converted to blob, size:', imageBlob.size);
 
     // Prepare multipart form data
     const formData = new FormData();
     formData.append('file', imageBlob, 'image.jpg');
 
-    // Call local Python microservice
-    const response = await fetch(VISION_SERVICE_URL, {
-      method: 'POST',
-      body: formData,
-    });
+    const possibleUrls = [
+      Deno.env.get('VISION_SERVICE_URL'),
+      'http://192.168.0.5:8000/analyze',
+      'http://host.docker.internal:8000/analyze',
+      'http://localhost:8000/analyze',
+      'http://127.0.0.1:8000/analyze'
+    ].filter(Boolean) as string[];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Vision Service error:', response.status, errorText);
-      throw new Error(`Vision Service error: ${response.status}`);
+    let response: Response | null = null;
+    let lastError: Error | null = null;
+
+    for (const url of possibleUrls) {
+      try {
+        console.log(`Attempting to reach Vision Service at ${url}...`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        const attempt = await fetch(url, {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (attempt.ok) {
+          response = attempt;
+          console.log(`Successfully reached Vision Service at ${url}`);
+          break;
+        } else {
+          console.warn(`Vision Service at ${url} returned ${attempt.status}`);
+        }
+      } catch (err) {
+        console.warn(`Failed to reach Vision Service at ${url}: ${err.message}`);
+        lastError = err as Error;
+      }
+    }
+
+    if (!response) {
+      const errorDetail = `Could not reach Vision Service. Tried: ${possibleUrls.join(', ')}. Last error: ${lastError?.message}`;
+      console.error(errorDetail);
+      throw new Error(errorDetail);
     }
 
     const result = await response.json();
