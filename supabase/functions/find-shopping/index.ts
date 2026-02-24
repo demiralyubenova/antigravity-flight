@@ -70,7 +70,7 @@ serve(async (req) => {
 
     // Select stores based on budget
     let selectedStores: typeof budgetStores = [];
-    
+
     if (!budgetNum || budgetNum >= 100) {
       // No budget or high budget - show all tiers
       selectedStores = [...budgetStores.slice(0, 2), ...midRangeStores.slice(0, 2), ...premiumStores.slice(0, 2), ...secondHandStores.slice(0, 2)];
@@ -107,7 +107,7 @@ Category: ${itemCategory || 'clothing'}
 ${description ? `Description: ${description}` : ''}
 ${maxBudget ? `Budget: $${maxBudget}` : ''}`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -119,13 +119,25 @@ ${maxBudget ? `Budget: $${maxBudget}` : ''}`;
     let tips = '';
     if (response.ok) {
       const data = await response.json();
+
+      // Calculate and log request cost
+      if (data.usageMetadata) {
+        const inputTokens = data.usageMetadata.promptTokenCount || 0;
+        const outputTokens = data.usageMetadata.candidatesTokenCount || 0;
+        // gemini-2.5-flash pricing: $0.075 per 1M input tokens, $0.30 per 1M output tokens
+        const inputCost = (inputTokens / 1_000_000) * 0.075;
+        const outputCost = (outputTokens / 1_000_000) * 0.30;
+        const totalCost = (inputCost + outputCost).toFixed(6);
+        console.log(`🤑 Gemini Request Cost [find-shopping]: $${totalCost} (${inputTokens} input tokens, ${outputTokens} output tokens)`);
+      }
+
       tips = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     }
 
     console.log('Generated shopping suggestions successfully');
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         stores: storeResults,
         tips,
         budget: maxBudget ? `$${maxBudget}` : null,

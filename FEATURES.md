@@ -208,4 +208,4 @@ A personal AI-powered wardrobe management and styling application.
 
 ---
 
-*Built with Lovable*
+

@@ -26,7 +26,8 @@ interface WeatherData {
 
 interface WeatherOutfitResponse {
   weather: WeatherData;
-  suggestions: string;
+  selected_wardrobe_ids: string[];
+  suggested_purchases: string[];
   perceivedTemperature: number;
 }
 
@@ -34,12 +35,13 @@ export function WeatherOutfits() {
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [suggestions, setSuggestions] = useState<string>('');
+  const [selectedOutfitIds, setSelectedOutfitIds] = useState<string[]>([]);
+  const [purchaseSuggestions, setPurchaseSuggestions] = useState<string[]>([]);
   const [perceivedTemp, setPerceivedTemp] = useState<number | null>(null);
   const [coldTolerance, setColdTolerance] = useState<string>('normal');
   const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [locationName, setLocationName] = useState<string>('');
-  
+
   const { toast } = useToast();
   const { items: clothingItems } = useClothingItems();
   const { profile, updateProfile } = useProfile();
@@ -60,7 +62,7 @@ export function WeatherOutfits() {
 
   const getLocation = async () => {
     setLocationLoading(true);
-    
+
     if (!navigator.geolocation) {
       toast({
         title: 'Location not supported',
@@ -75,7 +77,7 @@ export function WeatherOutfits() {
       async (position) => {
         const { latitude, longitude } = position.coords;
         setLocation({ lat: latitude, lon: longitude });
-        
+
         // Reverse geocode to get location name
         try {
           const geoResponse = await fetch(
@@ -90,7 +92,7 @@ export function WeatherOutfits() {
         } catch {
           setLocationName('Your location');
         }
-        
+
         setLocationLoading(false);
         fetchWeatherOutfits(latitude, longitude);
       },
@@ -108,13 +110,16 @@ export function WeatherOutfits() {
 
   const fetchWeatherOutfits = async (latitude: number, longitude: number) => {
     setLoading(true);
-    
+
     try {
       const { data, error } = await supabase.functions.invoke('weather-outfits', {
         body: {
           latitude,
           longitude,
-          wardrobeItems: clothingItems,
+          wardrobeItems: clothingItems.map(item => ({
+            id: item.id,
+            ai_description: item.ai_description
+          })),
           coldTolerance,
         },
       });
@@ -123,7 +128,8 @@ export function WeatherOutfits() {
 
       const response = data as WeatherOutfitResponse;
       setWeather(response.weather);
-      setSuggestions(response.suggestions);
+      setSelectedOutfitIds(response.selected_wardrobe_ids || []);
+      setPurchaseSuggestions(response.suggested_purchases || []);
       setPerceivedTemp(response.perceivedTemperature);
     } catch (error) {
       console.error('Error fetching weather outfits:', error);
@@ -140,7 +146,7 @@ export function WeatherOutfits() {
   const handleToleranceChange = async (value: string) => {
     setColdTolerance(value);
     await updateProfile({ cold_tolerance: value });
-    
+
     if (location) {
       fetchWeatherOutfits(location.lat, location.lon);
     }
@@ -235,11 +241,11 @@ export function WeatherOutfits() {
                 <div className="flex items-center gap-4">
                   {getWeatherIcon(weather.condition)}
                   <div>
-                    <div className="text-3xl font-semibold">{weather.temperature}°F</div>
+                    <div className="text-3xl font-semibold">{weather.temperature}°C</div>
                     <div className="text-sm text-muted-foreground">
-                      Feels like {weather.feelsLike}°F
+                      Feels like {weather.feelsLike}°C
                       {perceivedTemp !== weather.feelsLike && (
-                        <span className="ml-1">(you: {perceivedTemp}°F)</span>
+                        <span className="ml-1">(you: {perceivedTemp}°C)</span>
                       )}
                     </div>
                   </div>
@@ -251,7 +257,7 @@ export function WeatherOutfits() {
                   </div>
                   <div className="flex items-center justify-end gap-1">
                     <Wind className="h-3 w-3" />
-                    {weather.windSpeed} mph
+                    {weather.windSpeed} km/h
                   </div>
                 </div>
               </div>
@@ -261,14 +267,42 @@ export function WeatherOutfits() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Today's Outfit Suggestions</CardTitle>
+              <CardTitle className="text-lg">Today's Outfit Combinations</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="prose prose-sm max-w-none text-foreground">
-                {suggestions.split('\n').map((line, i) => (
-                  <p key={i} className="mb-2 last:mb-0">{line}</p>
-                ))}
-              </div>
+              {selectedOutfitIds.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                  {selectedOutfitIds.map((id) => {
+                    const item = clothingItems.find(i => i.id === id);
+                    if (!item) return null;
+                    return (
+                      <div key={item.id} className="relative aspect-square rounded-lg overflow-hidden border bg-muted group">
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-background/80 backdrop-blur-sm p-2 text-xs font-medium truncate">
+                          {item.name}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground mb-6">No specific items selected from your wardrobe to match this weather.</div>
+              )}
+
+              {purchaseSuggestions.length > 0 && (
+                <div className="space-y-2 mt-4 border-t pt-4">
+                  <h4 className="font-medium text-sm">Suggested additions for this weather:</h4>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {purchaseSuggestions.map((suggestion, i) => (
+                      <li key={i} className="text-sm text-muted-foreground">{suggestion}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </CardContent>
           </Card>
         </>

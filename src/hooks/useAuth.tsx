@@ -8,10 +8,15 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Get initial session — with a 5s timeout so we don't hang if Supabase is unreachable
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
+    const sessionFetch = supabase.auth.getSession().then(({ data: { session } }) => session);
+
+    Promise.race([sessionFetch, timeout]).then((session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     });
 

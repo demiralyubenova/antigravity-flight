@@ -16,11 +16,7 @@ interface WeatherData {
 
 interface ClothingItem {
   id: string;
-  name: string;
-  category: string;
-  color: string | null;
-  tags: string[] | null;
-  image_url: string;
+  ai_description: string | null;
 }
 
 serve(async (req) => {
@@ -42,7 +38,7 @@ serve(async (req) => {
 
     // Fetch weather from Open-Meteo (free, no API key needed)
     const weatherResponse = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm`
     );
 
     if (!weatherResponse.ok) {
@@ -77,9 +73,9 @@ serve(async (req) => {
 
     // Build wardrobe context for AI
     const wardrobeSummary = wardrobeItems?.length > 0
-      ? wardrobeItems.map((item: ClothingItem) => 
-          `- ${item.name} (${item.category}${item.color ? `, ${item.color}` : ''}${item.tags?.length ? `, tags: ${item.tags.join(', ')}` : ''})`
-        ).join('\n')
+      ? wardrobeItems.map((item: ClothingItem) =>
+        `- ID: ${item.id} | Items Description: ${item.ai_description || 'No description available'}`
+      ).join('\n')
       : 'No wardrobe items available';
 
     // Adjust temperature perception based on cold tolerance
@@ -89,34 +85,40 @@ serve(async (req) => {
     const systemPrompt = `You are a personal fashion stylist AI. Generate weather-appropriate outfit suggestions based on the user's actual wardrobe items.
 
 Current Weather:
-- Temperature: ${weather.temperature}°F (feels like ${weather.feelsLike}°F)
+- Temperature: ${weather.temperature}°C (feels like ${weather.feelsLike}°C)
 - Condition: ${weather.condition}
 - Humidity: ${weather.humidity}%
-- Wind: ${weather.windSpeed} mph
-- Precipitation: ${weather.precipitation} inches
+- Wind: ${weather.windSpeed} km/h
+- Precipitation: ${weather.precipitation} mm
 
-User's Cold Tolerance: ${coldTolerance} (perceived temperature adjusted to ${perceivedTemp}°F)
+User's Cold Tolerance: ${coldTolerance} (perceived temperature adjusted to ${perceivedTemp}°C)
 
 User's Wardrobe:
 ${wardrobeSummary}
 
 Guidelines:
-- Suggest 2-3 complete outfit options using ONLY items from the user's wardrobe
-- Consider layering for variable conditions
-- Account for rain/snow protection if needed
-- Match the formality to typical daily activities
-- For cold-blooded users, suggest warmer options; for warm-blooded, suggest lighter options
-- Be specific about which items to combine
-- Keep suggestions practical and stylish`;
+- Suggest 2-3 complete outfit options using ONLY items from the user's wardrobe based on the descriptions provided.
+- Consider layering for variable conditions.
+- Account for rain/snow protection if needed.
+- Match the formality to typical daily activities.
+- For cold-blooded users, suggest warmer options; for warm-blooded, suggest lighter options.
+- You must return ONLY a JSON response in the exact format shown below, with no markdown formatting or other text:
+{
+  "selected_wardrobe_ids": ["id1", "id2", "id3"],
+  "suggested_purchases": [
+     "A suggestion for an item that would pair well with the selected wardrobe items but is missing",
+     "Another purchase suggestion"
+  ]
+}`;
 
-    const userPrompt = `Based on today's weather and my wardrobe, what should I wear? Give me 2-3 outfit options with brief explanations of why each works for the conditions.`;
+    const userPrompt = `Based on today's weather and my wardrobe descriptions, what should I wear? Give me outfit options and what I am missing.`;
 
     const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
     if (!GEMINI_API_KEY) {
       throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -142,15 +144,45 @@ Guidelines:
     }
 
     const data = await response.json();
-    const suggestions = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Unable to generate suggestions';
+
+    // Calculate and log request cost
+    if (data.usageMetadata) {
+      const inputTokens = data.usageMetadata.promptTokenCount || 0;
+      const outputTokens = data.usageMetadata.candidatesTokenCount || 0;
+      // gemini-2.5-flash pricing: $0.075 per 1M input tokens, $0.30 per 1M output tokens
+      const inputCost = (inputTokens / 1_000_000) * 0.075;
+      const outputCost = (outputTokens / 1_000_000) * 0.30;
+      const totalCost = (inputCost + outputCost).toFixed(6);
+      console.log(`🤑 Gemini Request Cost [weather-outfits]: $${totalCost} (${inputTokens} input tokens, ${outputTokens} output tokens)`);
+    }
+
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!reply) {
+      throw new Error('Unable to generate suggestions');
+    }
+
+    let parsedReply;
+    try {
+      // Find the JSON block in the reply if it contains markdown formatting
+      const jsonMatch = reply.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedReply = JSON.parse(jsonMatch[0]);
+      } else {
+        parsedReply = JSON.parse(reply);
+      }
+    } catch (e) {
+      console.error('Failed to parse Gemini JSON output', reply, e);
+      throw new Error('Invalid JSON from AI');
+    }
 
     console.log('Generated outfit suggestions successfully');
 
     return new Response(
-      JSON.stringify({ 
-        weather, 
-        suggestions,
-        perceivedTemperature: perceivedTemp 
+      JSON.stringify({
+        weather,
+        ...parsedReply,
+        perceivedTemperature: perceivedTemp
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

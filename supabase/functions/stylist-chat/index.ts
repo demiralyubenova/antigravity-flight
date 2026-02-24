@@ -26,7 +26,7 @@ serve(async (req) => {
     // Build context about the user's wardrobe and recent outfits
     let wardrobeContext = '';
     if (wardrobeItems && wardrobeItems.length > 0) {
-      wardrobeContext = `\n\nThe user's wardrobe contains these items:\n${wardrobeItems.map((item: any) => 
+      wardrobeContext = `\n\nThe user's wardrobe contains these items:\n${wardrobeItems.map((item: any) =>
         `- ${item.name} (${item.category}${item.color ? `, ${item.color}` : ''}${item.brand ? `, ${item.brand}` : ''})`
       ).join('\n')}`;
     }
@@ -53,7 +53,7 @@ Keep responses concise but helpful. Be specific when referencing items from thei
 
     console.log('Sending request to Google Gemini...');
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,6 +79,18 @@ Keep responses concise but helpful. Be specific when referencing items from thei
     }
 
     const data = await response.json();
+
+    // Calculate and log request cost
+    if (data.usageMetadata) {
+      const inputTokens = data.usageMetadata.promptTokenCount || 0;
+      const outputTokens = data.usageMetadata.candidatesTokenCount || 0;
+      // gemini-2.5-flash pricing: $0.075 per 1M input tokens, $0.30 per 1M output tokens
+      const inputCost = (inputTokens / 1_000_000) * 0.075;
+      const outputCost = (outputTokens / 1_000_000) * 0.30;
+      const totalCost = (inputCost + outputCost).toFixed(6);
+      console.log(`🤑 Gemini Request Cost [stylist-chat]: $${totalCost} (${inputTokens} input tokens, ${outputTokens} output tokens)`);
+    }
+
     const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!reply) {

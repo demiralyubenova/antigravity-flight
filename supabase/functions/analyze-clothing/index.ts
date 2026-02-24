@@ -18,75 +18,48 @@ serve(async (req) => {
       throw new Error('Image URL is required');
     }
 
-    const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
-    if (!GEMINI_API_KEY) {
-      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
+    const VISION_SERVICE_URL = Deno.env.get('VISION_SERVICE_URL') || 'http://host.docker.internal:8000/analyze';
+
+    console.log(`Analyzing clothing image with local Vision Service at ${VISION_SERVICE_URL}...`);
+
+    // Fetch the image
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to fetch image from URL: ${imageResponse.statusText}`);
     }
+    const imageBlob = await imageResponse.blob();
 
-    console.log('Analyzing clothing image with Google Gemini...');
+    // Prepare multipart form data
+    const formData = new FormData();
+    formData.append('file', imageBlob, 'image.jpg');
 
-    const imageBase64 = imageUrl.startsWith('data:') 
-      ? imageUrl.split(',')[1] 
-      : await fetchImageAsBase64(imageUrl);
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    // Call local Python microservice
+    const response = await fetch(VISION_SERVICE_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `Analyze this clothing item image and extract the following information in JSON format:
-{
-  "name": "A short descriptive name for the item (e.g., 'Black Diesel Hoodie', 'Blue Denim Jeans')",
-  "category": "One of: tops, bottoms, dresses, outerwear, shoes, accessories",
-  "color": "The primary color of the item (e.g., 'Black', 'Navy Blue', 'White')",
-  "brand": "The brand name if visible on the item, or empty string if not visible"
-}
-
-Return ONLY the JSON object, no other text.`
-              },
-              {
-                inline_data: {
-                  mime_type: 'image/jpeg',
-                  data: imageBase64
-                }
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 500,
-        },
-      }),
+      body: formData,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
-      throw new Error(`Gemini API error: ${response.status}`);
+      console.error('Vision Service error:', response.status, errorText);
+      throw new Error(`Vision Service error: ${response.status}`);
     }
 
-    const data = await response.json();
-    console.log('Gemini response:', JSON.stringify(data));
+    const result = await response.json();
+    console.log('Vision Service response:', JSON.stringify(result));
 
-    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!textContent) {
-      throw new Error('No clothing analysis returned from AI');
-    }
+    // Construct the response expected by the frontend/DB
+    const clothingInfo = {
+      name: result.name,
+      category: result.category.toLowerCase(),
+      type: result.type,
+      color: result.color.charAt(0).toUpperCase() + result.color.slice(1).toLowerCase(),
+      brand: "", // Local classifier doesn't handle brands yet
+      ai_description: `${result.color.charAt(0).toUpperCase() + result.color.slice(1).toLowerCase()} ${result.type.toLowerCase()} classified as ${result.category.toLowerCase()}.`,
+      confidence: result.confidence
+    };
 
-    // Parse the JSON from the response
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No valid JSON in response');
-    }
-
-    const clothingInfo = JSON.parse(jsonMatch[0]);
-    console.log('Extracted clothing info:', clothingInfo);
+    console.log('Processed clothing info:', clothingInfo);
 
     return new Response(
       JSON.stringify(clothingInfo),

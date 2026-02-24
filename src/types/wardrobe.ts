@@ -1,6 +1,6 @@
 export type ClothingCategory = 'tops' | 'bottoms' | 'outerwear' | 'shoes' | 'accessories' | 'dresses';
 
-export type ClothingSubcategory = 
+export type ClothingSubcategory =
   // Tops
   | 't-shirt' | 'shirt' | 'blouse' | 'hoodie' | 'sweater' | 'tank'
   // Bottoms
@@ -68,6 +68,7 @@ export interface ClothingItem {
   color?: string;
   brand?: string;
   tags?: string[];
+  ai_description?: string;
   created_at: string;
   updated_at: string;
 }

@@ -41,21 +41,21 @@ serve(async (req) => {
     let feedbackContext = '';
     if (userFeedback && userFeedback.totalFeedbackCount > 0) {
       feedbackContext = '\n\nUSER PREFERENCES (learned from feedback):';
-      
+
       if (userFeedback.lovedItemIds?.length > 0) {
         const lovedItems = wardrobeItems.filter((i: any) => userFeedback.lovedItemIds.includes(i.id));
         if (lovedItems.length > 0) {
           feedbackContext += `\n- FAVORITE ITEMS (include more often): ${lovedItems.map((i: any) => i.name).join(', ')}`;
         }
       }
-      
+
       if (userFeedback.hatedItemIds?.length > 0) {
         const hatedItems = wardrobeItems.filter((i: any) => userFeedback.hatedItemIds.includes(i.id));
         if (hatedItems.length > 0) {
           feedbackContext += `\n- DISLIKED ITEMS (avoid using): ${hatedItems.map((i: any) => i.name).join(', ')}`;
         }
       }
-      
+
       if (userFeedback.prefersWarmer) {
         feedbackContext += '\n- User often feels cold - suggest warmer/layered options';
       }
@@ -114,7 +114,7 @@ If wardrobe lacks appropriate items, return:
 
     console.log('Generating outfit suggestions for:', occasion);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -140,6 +140,18 @@ If wardrobe lacks appropriate items, return:
     }
 
     const data = await response.json();
+
+    // Calculate and log request cost
+    if (data.usageMetadata) {
+      const inputTokens = data.usageMetadata.promptTokenCount || 0;
+      const outputTokens = data.usageMetadata.candidatesTokenCount || 0;
+      // gemini-2.5-flash pricing: $0.075 per 1M input tokens, $0.30 per 1M output tokens
+      const inputCost = (inputTokens / 1_000_000) * 0.075;
+      const outputCost = (outputTokens / 1_000_000) * 0.30;
+      const totalCost = (inputCost + outputCost).toFixed(6);
+      console.log(`🤑 Gemini Request Cost [generate-outfits]: $${totalCost} (${inputTokens} input tokens, ${outputTokens} output tokens)`);
+    }
+
     const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!reply) {

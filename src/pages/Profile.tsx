@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Save, User, Mail, Calendar, Loader2 } from 'lucide-react';
+import { Camera, Save, User, Mail, Calendar, Loader2, Edit2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DataExport } from '@/components/profile/DataExport';
 
@@ -16,17 +16,21 @@ export default function Profile() {
   const { profile, loading, updateProfile, uploadAvatar } = useProfile();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [displayName, setDisplayName] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
+  const [isEditingName, setIsEditingName] = useState(false);
+
   // Initialize display name when profile loads
-  useState(() => {
+  useEffect(() => {
     if (profile?.display_name) {
       setDisplayName(profile.display_name);
+    } else if (user?.email) {
+      setDisplayName(user.email.split('@')[0]);
     }
-  });
+  }, [profile, user]);
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -60,6 +64,7 @@ export default function Profile() {
       const { error } = await updateProfile({ display_name: displayName || null });
       if (error) throw error;
       toast({ title: 'Profile saved!', description: 'Your changes have been saved.' });
+      setIsEditingName(false);
     } catch (error) {
       console.error('Error saving profile:', error);
       toast({ title: 'Failed to save profile', variant: 'destructive' });
@@ -75,11 +80,11 @@ export default function Profile() {
     return user?.email?.charAt(0).toUpperCase() || 'U';
   };
 
-  const memberSince = user?.created_at 
-    ? new Date(user.created_at).toLocaleDateString('en-US', { 
-        month: 'long', 
-        year: 'numeric' 
-      })
+  const memberSince = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric'
+    })
     : 'Unknown';
 
   if (loading) {
@@ -149,33 +154,62 @@ export default function Profile() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="displayName">Display Name</Label>
-              <Input
-                id="displayName"
-                placeholder="Enter your name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-              />
-            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="displayName">Display Name</Label>
+                {!isEditingName && (
+                  <Button variant="ghost" size="sm" onClick={() => setIsEditingName(true)} className="h-8">
+                    <Edit2 className="mr-2 h-3 w-3" />
+                    Edit
+                  </Button>
+                )}
+              </div>
 
-            <Button 
-              onClick={handleSave} 
-              disabled={saving}
-              className="w-full"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
+              {!isEditingName ? (
+                <div className="p-3 bg-secondary/30 rounded-lg text-sm font-medium border border-border/50">
+                  {displayName || user?.email?.split('@')[0] || 'User'}
+                </div>
               ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Changes
-                </>
+                <div className="space-y-3">
+                  <Input
+                    id="displayName"
+                    placeholder="Enter your name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="flex-1"
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="mr-2 h-4 w-4" />
+                          Save Changes
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setIsEditingName(false);
+                        setDisplayName(profile?.display_name || user?.email?.split('@')[0] || '');
+                      }}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
               )}
-            </Button>
+            </div>
           </CardContent>
         </Card>
 

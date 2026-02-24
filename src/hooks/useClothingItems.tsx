@@ -13,7 +13,7 @@ export function useClothingItems(category?: ClothingCategory | 'all') {
     queryKey: ['clothing-items', user?.id, category],
     queryFn: async () => {
       if (!user) return [];
-      
+
       let query = supabase
         .from('clothing_items')
         .select('*')
@@ -32,9 +32,9 @@ export function useClothingItems(category?: ClothingCategory | 'all') {
   });
 
   const addItem = useMutation({
-    mutationFn: async (item: Omit<ClothingItem, 'id' | 'user_id' | 'created_at' | 'updated_at'> & { price?: number; subcategory?: ClothingSubcategory }) => {
+    mutationFn: async (item: Omit<ClothingItem, 'id' | 'user_id' | 'created_at' | 'updated_at'> & { price?: number; subcategory?: ClothingSubcategory; ai_description?: string }) => {
       if (!user) throw new Error('Not authenticated');
-      
+
       const { data, error } = await supabase
         .from('clothing_items')
         .insert({
@@ -43,7 +43,7 @@ export function useClothingItems(category?: ClothingCategory | 'all') {
         })
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -62,7 +62,7 @@ export function useClothingItems(category?: ClothingCategory | 'all') {
         .from('clothing_items')
         .delete()
         .eq('id', itemId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {

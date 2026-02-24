@@ -34,6 +34,7 @@ interface AddItemDialogProps {
     color?: string;
     brand?: string;
     price?: number;
+    ai_description?: string;
   }) => void;
 }
 
@@ -46,6 +47,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
   const [color, setColor] = useState('');
   const [brand, setBrand] = useState('');
   const [price, setPrice] = useState('');
+  const [aiDescription, setAiDescription] = useState<string>('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -92,6 +94,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
         }
         if (data.color) setColor(data.color);
         if (data.brand) setBrand(data.brand);
+        if (data.ai_description) setAiDescription(data.ai_description);
 
         toast({ title: 'Item analyzed!', description: 'Details auto-filled from image' });
       }
@@ -189,6 +192,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
         color: color || undefined,
         brand: brand || undefined,
         price: price ? parseFloat(price) : undefined,
+        ai_description: aiDescription || undefined,
       });
 
       // Reset form
@@ -198,6 +202,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
       setColor('');
       setBrand('');
       setPrice('');
+      setAiDescription('');
       setImageFile(null);
       setImagePreview(null);
       onOpenChange(false);
