@@ -88,6 +88,7 @@ IMPORTANT RULES:
 5. Avoid recently worn combinations
 6. CRITICAL: If the wardrobe does NOT have appropriate items for the occasion, set "insufficient" to true and explain what's missing in "missingItems"
 7. PAY ATTENTION to user preferences learned from their feedback${recentOutfitsContext}${feedbackContext}
+8. When generating suggestions use the EXACT same model provided by the user like the one from the try-on
 
 Available wardrobe items (use EXACT IDs):
 ${wardrobeItems.map((item: any) => `ID: "${item.id}" - ${item.name} (${item.category}${item.color ? `, ${item.color}` : ''})`).join('\n')}
@@ -128,7 +129,34 @@ If wardrobe lacks appropriate items, return:
         ],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 2000,
+          maxOutputTokens: 10000,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              insufficient: { type: "BOOLEAN" },
+              missingItems: {
+                type: "ARRAY",
+                items: { type: "STRING" }
+              },
+              outfits: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    name: { type: "STRING" },
+                    description: { type: "STRING" },
+                    itemIds: {
+                      type: "ARRAY",
+                      items: { type: "STRING" }
+                    }
+                  },
+                  required: ["name", "description", "itemIds"]
+                }
+              }
+            },
+            required: ["insufficient", "missingItems", "outfits"]
+          }
         },
       }),
     });
@@ -163,15 +191,19 @@ If wardrobe lacks appropriate items, return:
     // Parse the JSON from the response
     let outfits;
     try {
-      const jsonMatch = reply.match(/\{[\s\S]*\}/);
+      const jsonContent = reply.trim();
+      console.log(`AI Output Length: ${jsonContent.length} chars`);
+
+      const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         outfits = JSON.parse(jsonMatch[0]);
       } else {
-        throw new Error('No JSON found in response');
+        outfits = JSON.parse(jsonContent);
       }
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
-      throw new Error('Failed to parse outfit suggestions');
+      console.error('Failed to parse AI response. Excerpt:', reply.substring(0, 500));
+      console.error('Parse error:', parseError);
+      throw new Error(`Failed to parse outfit suggestions: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
     }
 
     console.log('Parsed outfits:', outfits);

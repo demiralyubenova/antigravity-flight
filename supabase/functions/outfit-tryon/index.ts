@@ -78,6 +78,7 @@ Create a photorealistic fashion image showing the provided digital avatar wearin
 
 Requirements:
 - Use the EXACT clothing items from the provided images - same colors, patterns, designs
+When generating suggestions use the EXACT same model provided by the user like the one from the try-on
 - Natural full-body pose showing the complete outfit
 - Professional fashion photography lighting
 - Clean neutral background
@@ -207,10 +208,18 @@ async function fetchImageAsBase64WithMime(url: string): Promise<{ base64: string
   const contentType = response.headers.get('content-type') || 'image/jpeg';
   const mimeType = contentType.split(';')[0];
   const arrayBuffer = await response.arrayBuffer();
+
+  // Use a more memory-efficient conversion
   const bytes = new Uint8Array(arrayBuffer);
   let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  const chunk_size = 8192;
+  for (let i = 0; i < bytes.length; i += chunk_size) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk_size) as unknown as number[]);
   }
-  return { base64: btoa(binary), mimeType };
+  const base64 = btoa(binary);
+
+  // Explicitly clear references for GC
+  binary = '';
+
+  return { base64, mimeType };
 }

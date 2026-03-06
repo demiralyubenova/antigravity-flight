@@ -131,11 +131,14 @@ export function WeatherOutfits() {
       setSelectedOutfitIds(response.selected_wardrobe_ids || []);
       setPurchaseSuggestions(response.suggested_purchases || []);
       setPerceivedTemp(response.perceivedTemperature);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching weather outfits:', error);
+      if (error && typeof error === 'object') {
+        console.error('Error details:', JSON.stringify(error, null, 2));
+      }
       toast({
         title: 'Error',
-        description: 'Failed to get weather-based suggestions. Please try again.',
+        description: error?.message || 'Failed to get weather-based suggestions. Please try again.',
         variant: 'destructive',
       });
     } finally {
