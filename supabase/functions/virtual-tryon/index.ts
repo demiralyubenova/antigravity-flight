@@ -19,7 +19,18 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
+    const textBody = await req.text();
+    console.log("Raw body length received:", textBody.length);
+    console.log("First 100 chars of body:", textBody.substring(0, 100));
+    
+    let body;
+    try {
+      body = JSON.parse(textBody);
+    } catch (parseError: any) {
+      console.error("JSON Parse Error. Body starts with:", textBody.substring(0, 50));
+      throw new Error(`JSON Parse Error: ${parseError.message}`);
+    }
+
     const { personImageUrl, clothingItems } = body;
 
     // Support legacy single-item format

@@ -16,7 +16,10 @@ interface WeatherData {
 
 interface ClothingItem {
   id: string;
-  ai_description: string | null;
+  name?: string;
+  category?: string;
+  color?: string | null;
+  ai_description?: string | null;
 }
 
 serve(async (req) => {
@@ -98,16 +101,19 @@ serve(async (req) => {
     let wardrobeSummary = "";
     try {
       wardrobeSummary = (wardrobeItems && wardrobeItems.length > 0)
-        ? wardrobeItems.map((item: ClothingItem) =>
-          `- ID: ${item.id} | Items Description: ${item.ai_description || "No description available"}`
-        ).join("\n")
+        ? wardrobeItems.map((item: ClothingItem) => {
+            const desc = item.ai_description
+              ? item.ai_description
+              : `${item.name || 'Item'} (${item.category || 'clothing'}${item.color ? ', ' + item.color : ''})`;
+            return `- ID: ${item.id} | Description: ${desc}`;
+          }).join("\n")
         : "No wardrobe items available";
     } catch (e) {
       console.error("[weather-outfits] Error processing wardrobe items:", e);
       return new Response(JSON.stringify({ error: "Invalid wardrobe items format" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const systemPrompt = `You are a personal fashion stylist AI. Generate weather-appropriate outfit suggestions based on the user's actual wardrobe items.
+    const systemPrompt = `You are a personal fashion stylist AI. Generate 3 distinct weather-appropriate outfit options based on the user's actual wardrobe items.
 
 Current Weather:
 - Temperature: ${weather.temperature}°C (feels like ${weather.feelsLike}°C)
@@ -121,22 +127,23 @@ User's Cold Tolerance: ${coldTolerance} (perceived temperature adjusted to ${per
 User's Wardrobe:
 ${wardrobeSummary}
 
-Guidelines:
-- Suggest 2-3 complete outfit options using ONLY items from the user's wardrobe based on the descriptions provided.
-- Consider layering for variable conditions.
-- Account for rain/snow protection if needed.
-- Match the formality to typical daily activities.
-- For cold-blooded users, suggest warmer options; for warm-blooded, suggest lighter options.
-- You must return ONLY a JSON response in the exact format shown below, with no markdown formatting or other text:
+You MUST return a valid JSON object and nothing else. No markdown, no explanation, no code fences. Return exactly:
 {
-  "selected_wardrobe_ids": ["id1", "id2", "id3"],
-  "suggested_purchases": [
-     "A suggestion for an item that would pair well with the selected wardrobe items but is missing",
-     "Another purchase suggestion"
-  ]
-}`;
+  "outfits": [
+    { "label": "Casual", "item_ids": ["id1", "id2", "id3"] },
+    { "label": "Smart Casual", "item_ids": ["id4", "id5"] },
+    { "label": "Layered", "item_ids": ["id6", "id7", "id8"] }
+  ],
+  "suggested_purchases": ["suggestion1", "suggestion2"]
+}
 
-    const userPrompt = `Based on today's weather and my wardrobe descriptions, what should I wear? Give me outfit options and what I am missing.`;
+Rules:
+- Select items ONLY from the wardrobe list above using their exact IDs.
+- Each outfit must contain 2-4 items that work well together for the weather.
+- Give each outfit a short label (e.g. Casual, Smart, Cozy, Sporty).
+- suggested_purchases are items NOT in the wardrobe that would help for this weather.`;
+
+    const userPrompt = `Based on today's weather and my wardrobe, give me 3 distinct outfit options as JSON.`;
 
     const GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     if (!GEMINI_API_KEY) {
@@ -149,7 +156,7 @@ Guidelines:
     console.log("[weather-outfits] Sending request to Gemini...");
     let reply = "";
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -162,23 +169,8 @@ Guidelines:
             },
           ],
           generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 10000,
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: "OBJECT",
-              properties: {
-                selected_wardrobe_ids: {
-                  type: "ARRAY",
-                  items: { type: "STRING" },
-                },
-                suggested_purchases: {
-                  type: "ARRAY",
-                  items: { type: "STRING" },
-                },
-              },
-              required: ["selected_wardrobe_ids", "suggested_purchases"],
-            },
+            temperature: 0.5,
+            maxOutputTokens: 4000,
           },
         }),
       });

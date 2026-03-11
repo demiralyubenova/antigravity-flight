@@ -156,8 +156,27 @@ export default function TryOn() {
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        const normalizedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        // Calculate new dimensions to ensure the payload is small (max 800px height/width)
+        const maxSize = 800;
+        let newWidth = img.width;
+        let newHeight = img.height;
+        
+        if (newWidth > maxSize || newHeight > maxSize) {
+          if (newWidth > newHeight) {
+            newHeight = (newHeight / newWidth) * maxSize;
+            newWidth = maxSize;
+          } else {
+            newWidth = (newWidth / newHeight) * maxSize;
+            newHeight = maxSize;
+          }
+        }
+        
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        
+        ctx.drawImage(img, 0, 0, newWidth, newHeight);
+        // Use heavily compressed jpeg strictly for sending over network to avoid crashing edge function!
+        const normalizedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
         setPersonImage(normalizedDataUrl);
         setTryOnResult(null);
         setSelectedSavedResult(null);

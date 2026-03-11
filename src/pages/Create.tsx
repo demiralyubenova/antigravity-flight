@@ -244,22 +244,36 @@ export default function Create() {
       }
 
       if (data.outfits && Array.isArray(data.outfits)) {
+        console.log(`[Create] Received ${data.outfits.length} outfits from AI`);
         // Map item IDs to actual items
-        const suggestionsWithItems = data.outfits.map((outfit: OutfitSuggestion) => ({
-          ...outfit,
-          items: outfit.itemIds
-            .map(id => wardrobeItems.find(item => item.id === id))
-            .filter(Boolean) as ClothingItem[],
-        }));
+        const suggestionsWithItems = data.outfits.map((outfit: OutfitSuggestion, idx: number) => {
+          const matchedItems = outfit.itemIds
+            .map(id => {
+              const item = wardrobeItems.find(item => item.id === id);
+              if (!item) console.warn(`[Create] Outfit ${idx+1}: Could not find wardrobe item with ID: ${id}`);
+              return item;
+            })
+            .filter(Boolean) as ClothingItem[];
+          
+          console.log(`[Create] Outfit ${idx+1}: matched ${matchedItems.length}/${outfit.itemIds.length} items`);
+          
+          return {
+            ...outfit,
+            items: matchedItems,
+          };
+        });
 
         setOutfitSuggestions(suggestionsWithItems);
         toast({ title: '✨ Creating try-on previews...' });
 
-        // Automatically generate try-on for all outfits if person image available
+        // Sequentially generate try-on for outfits to avoid rate limits
         if (personImage) {
-          suggestionsWithItems.forEach((_: OutfitSuggestion, index: number) => {
-            generateTryOn(index, suggestionsWithItems);
-          });
+          const runTryOns = async () => {
+            for (let i = 0; i < suggestionsWithItems.length; i++) {
+              await generateTryOn(i, suggestionsWithItems);
+            }
+          };
+          runTryOns();
         }
       }
     } catch (error: any) {
