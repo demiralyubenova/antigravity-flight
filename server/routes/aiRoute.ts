@@ -2,13 +2,32 @@
 import express from 'express';
 import multer from 'multer';
 
+const PYTHON_URL = 'http://localhost:8000';
+
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
+
+// Check if Python server is reachable
+async function checkPythonServer(): Promise<boolean> {
+    try {
+        const fetch = (await import('node-fetch')).default as any;
+        const resp = await fetch(`${PYTHON_URL}/health`, { timeout: 2000 });
+        return resp.ok;
+    } catch {
+        return false;
+    }
+}
 
 router.post('/remove-background', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        const healthy = await checkPythonServer();
+        if (!healthy) {
+            console.error('Python server not reachable at', PYTHON_URL);
+            return res.status(503).json({ error: 'Background removal service is starting up, please try again in a few seconds' });
         }
 
         const fs = await import('fs');
@@ -21,7 +40,8 @@ router.post('/remove-background', upload.single('file'), async (req, res) => {
             contentType: req.file.mimetype
         });
 
-        const pyResponse = await fetch('http://localhost:8000/remove-bg', {
+        console.log('Sending image to Python server for background removal...');
+        const pyResponse = await fetch(`${PYTHON_URL}/remove-bg`, {
             method: 'POST',
             body: formData as any,
             headers: formData.getHeaders()
@@ -29,19 +49,21 @@ router.post('/remove-background', upload.single('file'), async (req, res) => {
 
         if (!pyResponse.ok) {
             const errorText = await pyResponse.text();
+            console.error('Python server error:', pyResponse.status, errorText);
             throw new Error(`Python Vision Service Error: ${errorText}`);
         }
 
         // Convert PNG response to base64
         const buffer = Buffer.from(await pyResponse.arrayBuffer());
         const base64 = `data:image/png;base64,${buffer.toString('base64')}`;
+        console.log('Background removal successful, response size:', buffer.length);
 
         // Cleanup upload
         try { fs.unlinkSync(req.file.path); } catch(e){}
 
         res.json({ result: base64 });
     } catch (error: any) {
-        console.error('Error processing background removal:', error);
+        console.error('Error processing background removal:', error.message);
         res.status(500).json({ error: error.message || 'Failed to process image' });
     }
 });
