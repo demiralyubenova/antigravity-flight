@@ -24,10 +24,11 @@ RUN python3 -m venv python/.venv && \
 
 # Pre-download the lightweight u2netp model at build time
 RUN python/.venv/bin/python -c "\
-from rembg import remove; \
+from rembg import remove, new_session; \
 from PIL import Image; \
+session = new_session('u2netp'); \
 img = Image.new('RGB', (10,10)); \
-remove(img, model_name='u2netp'); \
+remove(img, session=session); \
 print('rembg u2netp model pre-downloaded successfully')"
 
 # Install Node dependencies

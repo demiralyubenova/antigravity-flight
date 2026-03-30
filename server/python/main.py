@@ -3,13 +3,17 @@ import logging
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, ImageOps
-from rembg import remove
+from rembg import remove, new_session
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Falcon Vision Service")
+
+# Load lightweight u2netp session once at startup
+rembg_session = new_session("u2netp")
+logger.info("Loaded rembg u2netp session")
 
 # Add CORS support
 app.add_middleware(
@@ -29,8 +33,7 @@ async def remove_background(file: UploadFile = File(...)):
         image = ImageOps.exif_transpose(image)
 
         logger.info(f"Removing background for: {file.filename}, size: {image.size}")
-        # Use u2netp (lightweight) model to reduce memory usage
-        result = remove(image, model_name="u2netp")
+        result = remove(image, session=rembg_session)
 
         output = io.BytesIO()
         result.save(output, format="PNG")
