@@ -2,10 +2,26 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import { spawn } from 'child_process';
 import aiRoutes from './routes/aiRoute.js';
 
 const app = express();
 const PORT = process.env.PORT || 3011;
+
+// Start Python vision server
+const venvPython = path.resolve(process.cwd(), 'python/.venv/bin/python');
+const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python3';
+
+console.log(`Starting Python server with: ${pythonBin}`);
+const pyServer = spawn(pythonBin, ['-m', 'uvicorn', 'python.main:app', '--host', '0.0.0.0', '--port', '8000'], {
+    cwd: process.cwd(),
+    stdio: ['ignore', 'pipe', 'pipe'],
+});
+
+pyServer.stdout.on('data', (data: Buffer) => console.log(`[python] ${data.toString().trim()}`));
+pyServer.stderr.on('data', (data: Buffer) => console.log(`[python] ${data.toString().trim()}`));
+pyServer.on('error', (err) => console.error('[python] Failed to start:', err.message));
+pyServer.on('exit', (code) => console.error(`[python] Exited with code ${code}`));
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
