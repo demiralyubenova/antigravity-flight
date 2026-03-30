@@ -4,8 +4,9 @@ nixPkgs = ["nodejs", "python311", "python311Packages.pip"]
 [phases.install]
 cmds = [
   "npm ci",
-  "pip install -r python/requirements.txt"
+  "python3 -m venv python/.venv",
+  "python/.venv/bin/pip install -r python/requirements.txt"
 ]
 
 [start]
-cmd = "tsx server.ts & uvicorn python.main:app --host 0.0.0.0 --port 8000"
+cmd = "tsx server.ts & python/.venv/bin/uvicorn python.main:app --host 0.0.0.0 --port 8000"
