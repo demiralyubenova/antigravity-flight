@@ -28,9 +28,17 @@ app.add_middleware(
 async def remove_background(file: UploadFile = File(...)):
     """Remove the background from an uploaded image and return the result as PNG bytes."""
     try:
+        import gc
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGBA")
         image = ImageOps.exif_transpose(image)
+        original_size = image.size
+
+        # Resize large images to reduce memory usage during inference
+        MAX_DIM = 1024
+        if max(image.size) > MAX_DIM:
+            image.thumbnail((MAX_DIM, MAX_DIM), Image.LANCZOS)
+            logger.info(f"Resized from {original_size} to {image.size}")
 
         logger.info(f"Removing background for: {file.filename}, size: {image.size}")
         result = remove(image, session=rembg_session)
@@ -38,9 +46,15 @@ async def remove_background(file: UploadFile = File(...)):
         output = io.BytesIO()
         result.save(output, format="PNG")
         output.seek(0)
+        content = output.read()
+        logger.info(f"Background removal complete, output size: {len(content)} bytes")
+
+        # Free memory
+        del image, result, contents
+        gc.collect()
 
         from fastapi.responses import Response
-        return Response(content=output.read(), media_type="image/png")
+        return Response(content=content, media_type="image/png")
 
     except Exception as e:
         logger.error(f"Error removing background: {str(e)}")
