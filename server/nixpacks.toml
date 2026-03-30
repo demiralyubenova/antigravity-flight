@@ -10,4 +10,4 @@ cmds = [
 ]
 
 [start]
-cmd = "tsx server.ts"
+cmd = "bash start.sh"
