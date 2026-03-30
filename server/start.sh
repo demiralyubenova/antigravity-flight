@@ -15,4 +15,4 @@ else
 fi
 
 echo "Starting Node server..."
-exec tsx server.ts
+exec npx tsx server.ts
