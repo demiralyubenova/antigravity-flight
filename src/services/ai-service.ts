@@ -12,7 +12,14 @@ export const removeBackground = async (file: File, type: 'CLOTHING' | 'PERSON' =
         });
 
         if (!response.ok) {
-            throw new Error(`Backend error: ${response.statusText}`);
+            // Read the actual error from the backend JSON body
+            let errorDetail = response.statusText;
+            try {
+                const errBody = await response.json();
+                errorDetail = errBody.error || errorDetail;
+            } catch (_) {}
+            console.error('Backend remove-background error:', errorDetail);
+            throw new Error(`Backend error: ${errorDetail}`);
         }
 
         const data = await response.json();
