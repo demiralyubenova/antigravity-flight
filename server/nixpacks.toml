@@ -1,12 +1,10 @@
 [phases.setup]
-nixPkgs = ["nodejs", "python311", "python311Packages.pip"]
+nixPkgs = ["nodejs"]
 
 [phases.install]
 cmds = [
   "npm install",
-  "npm run build",
-  "python3 -m venv python/.venv",
-  "python/.venv/bin/pip install rembg[cpu] pillow pillow-heif"
+  "npm run build"
 ]
 
 [start]
