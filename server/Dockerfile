@@ -37,5 +37,9 @@ RUN npm ci
 # Copy the rest of the source
 COPY . .
 
-# Railway sets PORT automatically - tsx reads process.env.PORT
-CMD ["npx", "tsx", "server.ts"]
+# Install fastapi + uvicorn for the Python vision server
+RUN python/.venv/bin/pip install --no-cache-dir fastapi uvicorn
+
+# Railway sets PORT automatically
+# start.sh launches both Python vision server and Node server
+CMD ["bash", "start.sh"]
