@@ -5,7 +5,8 @@ nixPkgs = ["nodejs", "python311", "python311Packages.pip"]
 cmds = [
   "npm ci",
   "python3 -m venv python/.venv",
-  "python/.venv/bin/pip install rembg[cpu] pillow"
+  "python/.venv/bin/pip install rembg[cpu] pillow",
+  "python/.venv/bin/python -c \"from rembg import remove; from PIL import Image; import io; img = Image.new('RGB', (10,10)); remove(img); print('rembg model ready')\"" 
 ]
 
 [start]
