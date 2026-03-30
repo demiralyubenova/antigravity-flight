@@ -8,5 +8,8 @@ cmds = [
   "python/.venv/bin/pip install rembg[cpu] pillow pillow-heif"
 ]
 
+[phases.build]
+cmds = ["npm run build"]
+
 [start]
-cmd = "tsx server.ts"
+cmd = "node dist/server.js"
