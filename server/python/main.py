@@ -28,8 +28,9 @@ async def remove_background(file: UploadFile = File(...)):
         image = Image.open(io.BytesIO(contents)).convert("RGBA")
         image = ImageOps.exif_transpose(image)
 
-        logger.info(f"Removing background for: {file.filename}")
-        result = remove(image)
+        logger.info(f"Removing background for: {file.filename}, size: {image.size}")
+        # Use u2netp (lightweight) model to reduce memory usage
+        result = remove(image, model_name="u2netp")
 
         output = io.BytesIO()
         result.save(output, format="PNG")

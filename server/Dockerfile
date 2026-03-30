@@ -22,13 +22,13 @@ COPY python/requirements.txt ./python/
 RUN python3 -m venv python/.venv && \
     python/.venv/bin/pip install --no-cache-dir rembg[cpu] pillow
 
-# Pre-download rembg model at build time (avoids cold-start delay)
+# Pre-download the lightweight u2netp model at build time
 RUN python/.venv/bin/python -c "\
 from rembg import remove; \
 from PIL import Image; \
 img = Image.new('RGB', (10,10)); \
-remove(img); \
-print('rembg model pre-downloaded successfully')"
+remove(img, model_name='u2netp'); \
+print('rembg u2netp model pre-downloaded successfully')"
 
 # Install Node dependencies
 COPY package*.json ./

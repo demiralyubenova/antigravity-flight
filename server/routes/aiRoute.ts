@@ -44,7 +44,8 @@ router.post('/remove-background', upload.single('file'), async (req, res) => {
         const pyResponse = await fetch(`${PYTHON_URL}/remove-bg`, {
             method: 'POST',
             body: formData as any,
-            headers: formData.getHeaders()
+            headers: formData.getHeaders(),
+            timeout: 60000, // 60s timeout for CPU-based background removal
         });
 
         if (!pyResponse.ok) {
