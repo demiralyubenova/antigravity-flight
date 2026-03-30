@@ -1,11 +1,12 @@
 [phases.setup]
-nixPkgs = ["nodejs"]
+nixPkgs = ["nodejs", "python311", "python311Packages.pip"]
 
 [phases.install]
 cmds = [
-  "npm install",
-  "npm run build"
+  "npm ci",
+  "python3 -m venv python/.venv",
+  "python/.venv/bin/pip install rembg[cpu] pillow"
 ]
 
 [start]
-cmd = "node dist/server.js"
+cmd = "tsx server.ts"
