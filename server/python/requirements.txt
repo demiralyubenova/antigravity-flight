@@ -3,7 +3,4 @@ pillow
 pillow-heif
 fastapi
 uvicorn
-torch
-torchvision
-transformers
 python-multipart
