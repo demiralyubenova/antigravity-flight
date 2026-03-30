@@ -9,4 +9,4 @@ cmds = [
 ]
 
 [start]
-cmd = "tsx server.ts & python/.venv/bin/uvicorn python.main:app --host 0.0.0.0 --port 8000"
+cmd = "python/.venv/bin/uvicorn python.main:app --host 0.0.0.0 --port 8000 & tsx server.ts"
