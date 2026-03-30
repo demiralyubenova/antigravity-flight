@@ -5,8 +5,8 @@ nixPkgs = ["nodejs", "python311", "python311Packages.pip"]
 cmds = [
   "npm ci",
   "python3 -m venv python/.venv",
-  "python/.venv/bin/pip install -r python/requirements.txt"
+  "python/.venv/bin/pip install rembg[cpu] pillow pillow-heif"
 ]
 
 [start]
-cmd = "python/.venv/bin/uvicorn python.main:app --host 0.0.0.0 --port 8000 & tsx server.ts"
+cmd = "tsx server.ts"
