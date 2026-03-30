@@ -32,6 +32,6 @@ app.get('/', (req, res) => {
     res.send('Antigravity Flight AI Backend is running.');
 });
 
-app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`Backend server running on http://0.0.0.0:${PORT}`);
+app.listen(Number(PORT), '::', () => {
+    console.log(`Backend server running on http://[::]:${PORT} (or http://0.0.0.0:${PORT})`);
 });
