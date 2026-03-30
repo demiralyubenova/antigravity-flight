@@ -38,7 +38,7 @@ RUN npm ci
 COPY . .
 
 # Install fastapi + uvicorn for the Python vision server
-RUN python/.venv/bin/pip install --no-cache-dir fastapi uvicorn
+RUN python/.venv/bin/pip install --no-cache-dir fastapi uvicorn python-multipart
 
 # Railway sets PORT automatically
 # start.sh launches both Python vision server and Node server
