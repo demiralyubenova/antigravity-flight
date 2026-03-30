@@ -14,12 +14,9 @@ if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-app.use(cors({
-  origin: ['https://wearwise-noit.vercel.app', 'http://localhost:8080'],
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+// Allow all origins for CORS (permissive for production compatibility)
+app.use(cors());
+app.options('*', cors()); // Handle preflight requests
 app.use(express.json());
 
 // Logger
