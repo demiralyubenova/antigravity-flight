@@ -6,7 +6,7 @@ import fs from 'fs';
 import aiRoutes from './routes/aiRoute.js';
 
 const app = express();
-const PORT = 3011;
+const PORT = process.env.PORT || 3011;
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');

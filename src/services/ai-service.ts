@@ -5,8 +5,7 @@ export const removeBackground = async (file: File, type: 'CLOTHING' | 'PERSON' =
         formData.append('file', file);
         formData.append('type', type);
 
-        // Using port 3011 as identified in the Aura backend server.ts
-        const backendUrl = 'http://localhost:3011';
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3011';
         const response = await fetch(`${backendUrl}/api/remove-background`, {
             method: 'POST',
             body: formData,

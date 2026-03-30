@@ -4,8 +4,10 @@ import { NavLink } from '@/components/NavLink';
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -30,7 +32,12 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarContent className="pt-4">
+      <SidebarHeader className="p-4">
+        {!isCollapsed && (
+          <span className="font-display text-xl font-bold px-2">Wear Wise</span>
+        )}
+      </SidebarHeader>
+      <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -57,6 +64,18 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="p-4 border-t border-sidebar-border/50">
+        <div className="flex items-center justify-start">
+          <img 
+            src="/logo.svg" 
+            alt="Logo" 
+            className={cn(
+              "shrink-0 transition-all duration-300 object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] dark:drop-shadow-[0_0_2px_rgba(0,0,0,0.5)]",
+              isCollapsed ? "h-10 w-10" : "h-24 w-24"
+            )}
+          />
+        </div>
+      </SidebarFooter>
     </Sidebar>
   );
 }

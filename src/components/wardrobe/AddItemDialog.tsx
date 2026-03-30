@@ -94,7 +94,10 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
         const formData = new FormData();
         formData.append('file', blob, 'image.jpg');
 
-        const localResponse = await fetch('http://localhost:8000/analyze', {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3011';
+        // Note: Analysis service usually runs on port 8000 locally, but in production 
+        // we use the same main backend URL which proxies or handles both.
+        const localResponse = await fetch(`${backendUrl}/api/analyze`, {
           method: 'POST',
           body: formData,
         });
