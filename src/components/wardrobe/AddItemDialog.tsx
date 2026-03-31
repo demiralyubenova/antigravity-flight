@@ -60,7 +60,7 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
 
   const removeBackground = async (file: File): Promise<{ processedUrl: string; file: File } | null> => {
     try {
-      // Use the local AI service instead of Supabase function
+      // Use the Supabase edge function which connects to local rembg service
       const base64Result = await removeBackgroundAI(file, 'CLOTHING');
 
       if (base64Result) {
