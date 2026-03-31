@@ -7,99 +7,94 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log('--- Remove Background Request Received ---');
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { imageUrl } = await req.json();
+    console.log('Image URL received:', imageUrl?.substring(0, 50) + '...');
 
     if (!imageUrl) {
       throw new Error('Image URL is required');
     }
 
-    const REMOVE_BG_API_KEY = Deno.env.get('REMOVE_BG_API_KEY');
-    if (!REMOVE_BG_API_KEY) {
-      throw new Error('REMOVE_BG_API_KEY is not configured');
-    }
-
-    console.log('Removing background from image using remove.bg API...');
-
-    // Prepare the request to remove.bg
-    const formData = new FormData();
-    
+    // Convert image URL to blob
+    let imageBlob: Blob;
     if (imageUrl.startsWith('data:')) {
-      // Handle base64 data URL - extract the base64 part and convert to blob
-      const matches = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
-      if (!matches) {
-        throw new Error('Invalid data URL format');
-      }
-      const mimeType = matches[1];
-      const base64Data = matches[2];
-      
-      // Convert base64 to binary
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const blob = new Blob([bytes], { type: mimeType });
-      formData.append('image_file', blob, 'image.png');
+      console.log('Processing data URL...');
+      const response = await fetch(imageUrl);
+      imageBlob = await response.blob();
     } else {
-      // For URL, use image_url parameter
-      formData.append('image_url', imageUrl);
+      console.log('Fetching image from URL...');
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image from URL: ${imageResponse.statusText}`);
+      }
+      imageBlob = await imageResponse.blob();
     }
-    
-    formData.append('size', 'auto');
-    formData.append('bg_color', 'FFFFFF');
+    console.log('Image converted to blob, size:', imageBlob.size);
 
-    console.log('Calling remove.bg API...');
-    
-    const response = await fetch('https://api.remove.bg/v1.0/removebg', {
-      method: 'POST',
-      headers: {
-        'X-Api-Key': REMOVE_BG_API_KEY,
-      },
-      body: formData,
-    });
+    // Prepare multipart form data
+    const formData = new FormData();
+    formData.append('file', imageBlob, 'image.png');
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('remove.bg API error:', response.status, errorText);
-      
-      if (response.status === 402) {
-        // Payment required - out of credits
-        return new Response(
-          JSON.stringify({ 
-            processedImageUrl: imageUrl, 
-            fallback: true, 
-            error: 'remove.bg credits exhausted. Please add more credits to your account.' 
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+    // Try multiple possible URLs for the local Python rembg service
+    const possibleUrls = [
+      Deno.env.get('VISION_SERVICE_URL')?.replace(/\/analyze$/, '/remove-bg'),
+      'http://192.168.0.5:8000/remove-bg',
+      'http://host.docker.internal:8000/remove-bg',
+      'http://localhost:8000/remove-bg',
+      'http://127.0.0.1:8000/remove-bg'
+    ].filter(Boolean) as string[];
+
+    let response: Response | null = null;
+    let lastError: Error | null = null;
+
+    for (const url of possibleUrls) {
+      try {
+        console.log(`Attempting to reach rembg service at ${url}...`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for bg removal
+
+        const attempt = await fetch(url, {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (attempt.ok) {
+          response = attempt;
+          console.log(`Successfully reached rembg service at ${url}`);
+          break;
+        } else {
+          console.warn(`rembg service at ${url} returned ${attempt.status}`);
+        }
+      } catch (err) {
+        console.warn(`Failed to reach rembg service at ${url}: ${err.message}`);
+        lastError = err as Error;
       }
-      
-      if (response.status === 403) {
-        return new Response(
-          JSON.stringify({ 
-            processedImageUrl: imageUrl, 
-            fallback: true, 
-            error: 'Invalid remove.bg API key' 
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
+    }
+
+    if (!response) {
+      const errorDetail = `Could not reach rembg service. Tried: ${possibleUrls.join(', ')}. Last error: ${lastError?.message}`;
+      console.error(errorDetail);
+      // Return fallback with original image
       return new Response(
-        JSON.stringify({ processedImageUrl: imageUrl, fallback: true, error: errorText }),
+        JSON.stringify({
+          processedImageUrl: imageUrl,
+          fallback: true,
+          error: errorDetail
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // remove.bg returns the image directly as binary
+    // The Python service returns PNG binary
     const imageBuffer = await response.arrayBuffer();
     const uint8Array = new Uint8Array(imageBuffer);
-    
+
     // Convert to base64
     let binary = '';
     for (let i = 0; i < uint8Array.length; i++) {
@@ -107,9 +102,9 @@ serve(async (req) => {
     }
     const base64Image = btoa(binary);
     const processedImageUrl = `data:image/png;base64,${base64Image}`;
-    
-    console.log('Background removed successfully with remove.bg');
-    
+
+    console.log('Background removed successfully with local rembg service');
+
     return new Response(
       JSON.stringify({ processedImageUrl }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
