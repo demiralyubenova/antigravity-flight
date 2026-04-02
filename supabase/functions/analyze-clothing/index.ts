@@ -37,8 +37,8 @@ serve(async (req) => {
 
     const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_GEMINI_API_KEY') || "AIzaSyCEZg-KDQD2WpBaZ1CgygovRGT7GeRoLcE";
 
-    // Reverting to stable REST API to avoid SDK version conflicts in Deno
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // Revert to documented robust model alias
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
     
     const requestBody = {
       contents: [
