@@ -295,13 +295,13 @@ export default function Create() {
 
     setTryOnLoading(prev => new Set([...prev, index]));
     try {
-      const { data, error } = await supabase.functions.invoke('outfit-tryon', {
+      const { data, error } = await supabase.functions.invoke('virtual-tryon', {
         body: {
           personImageUrl: personImage,
           clothingItems: outfit.items.map(item => ({
             name: item.name,
             category: item.category,
-            image_url: item.image_url,
+            imageUrl: item.image_url,
           })),
         },
       });
@@ -319,6 +319,11 @@ export default function Create() {
       }
     } catch (error: any) {
       console.error('Error in outfit try-on:', error);
+      toast({
+        title: 'Virtual Try-on Failed',
+        description: error.message || 'Could not generate try-on image',
+        variant: 'destructive',
+      });
     } finally {
       setTryOnLoading(prev => {
         const newSet = new Set(prev);
@@ -456,7 +461,7 @@ export default function Create() {
                   />
                   <Button
                     onClick={handleGenerateOutfits}
-                    disabled={!occasion || loading}
+                    disabled={loading}
                     className="h-12 px-6 gap-2 rounded-xl"
                   >
                     {loading ? (
