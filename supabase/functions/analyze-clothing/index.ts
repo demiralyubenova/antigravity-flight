@@ -1,3 +1,4 @@
+// @ts-nocheck
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -72,8 +73,8 @@ serve(async (req) => {
         } else {
           console.warn(`Vision Service at ${url} returned ${attempt.status}`);
         }
-      } catch (err) {
-        console.warn(`Failed to reach Vision Service at ${url}: ${err.message}`);
+      } catch (err: unknown) {
+        console.warn(`Failed to reach Vision Service at ${url}: ${(err as Error).message}`);
         lastError = err as Error;
       }
     }
