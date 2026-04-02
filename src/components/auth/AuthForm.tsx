@@ -1,4 +1,5 @@
 import { useState, ChangeEvent, FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import {
   AnimatedForm,
@@ -14,6 +15,7 @@ export function AuthForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -24,9 +26,13 @@ export function AuthForm() {
       if (isLogin) {
         const { error } = await signIn(email, password);
         if (error) throw error;
+        navigate('/wardrobe');
       } else {
         const { error } = await signUp(email, password, displayName);
         if (error) throw error;
+        // Navigation will happen via onAuthStateChange if automatically logged in
+        // but let's force it for better UX if the session is available
+        navigate('/wardrobe');
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred');

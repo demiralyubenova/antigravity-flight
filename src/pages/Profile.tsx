@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Save, User, Mail, Calendar, Loader2, Edit2 } from 'lucide-react';
+import { Camera, Save, User, Mail, Calendar, Loader2, Edit2, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DataExport } from '@/components/profile/DataExport';
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { profile, loading, updateProfile, uploadAvatar } = useProfile();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -238,6 +238,23 @@ export default function Profile() {
 
         {/* Data Export */}
         <DataExport />
+
+        {/* Logout Section */}
+        <Card className="border-0 shadow-elegant bg-destructive/5 mt-8">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-sm text-muted-foreground font-display">Finished for today?</p>
+              <Button 
+                variant="destructive" 
+                className="w-full gap-2 rounded-xl h-12"
+                onClick={() => signOut()}
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );
