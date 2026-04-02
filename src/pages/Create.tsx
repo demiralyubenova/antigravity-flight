@@ -607,36 +607,36 @@ export default function Create() {
                         {/* Side-by-side: Try-on + Items */}
                         <div className="grid grid-cols-2 gap-4">
                           {/* Try On Result / Loading */}
-                          <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted border border-border">
-                            {tryOnLoading.has(index) ? (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                <TextShimmer
-                                  className="text-sm font-medium"
-                                  duration={1.2}
-                                >
-                                  Generating your look...
-                                </TextShimmer>
-                              </div>
-                            ) : outfit.tryOnImageUrl ? (
-                              <>
+                          <div className="space-y-2 flex flex-col h-full">
+                            <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted border border-border">
+                              {tryOnLoading.has(index) ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
+                                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                  <TextShimmer
+                                    className="text-sm font-medium"
+                                    duration={1.2}
+                                  >
+                                    Generating your look...
+                                  </TextShimmer>
+                                </div>
+                              ) : outfit.tryOnImageUrl ? (
                                 <img
                                   src={outfit.tryOnImageUrl}
                                   alt={`${outfit.name} try-on`}
                                   className="w-full h-full object-cover"
                                 />
-                                <div className="absolute bottom-2 left-2 right-2">
-                                  <div className="bg-background/90 backdrop-blur-sm rounded-lg px-2 py-1.5 text-center">
-                                    <span className="text-xs font-medium text-primary">✨ Your Look</span>
-                                  </div>
+                              ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+                                  <Eye className="h-8 w-8 text-muted-foreground/50" />
+                                  <p className="text-xs text-muted-foreground">
+                                    {personImage ? 'Try-on will appear here' : 'Upload photo in Try On page'}
+                                  </p>
                                 </div>
-                              </>
-                            ) : (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-                                <Eye className="h-8 w-8 text-muted-foreground/50" />
-                                <p className="text-xs text-muted-foreground">
-                                  {personImage ? 'Try-on will appear here' : 'Upload photo in Try On page'}
-                                </p>
+                              )}
+                            </div>
+                            {outfit.tryOnImageUrl && !tryOnLoading.has(index) && (
+                              <div className="mt-auto bg-muted/30 rounded-xl px-2 py-2 text-center border border-border">
+                                <span className="text-xs font-medium text-primary">✨ Your Look</span>
                               </div>
                             )}
                           </div>
