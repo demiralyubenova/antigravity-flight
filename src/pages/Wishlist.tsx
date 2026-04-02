@@ -41,6 +41,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import { removeBackground } from '@/services/ai-service';
 
 const categories = [
   'Tops', 'Bottoms', 'Dresses', 'Outerwear', 'Shoes', 'Accessories', 'Bags', 'Other'
@@ -100,22 +101,12 @@ export default function Wishlist() {
 
     setUploadingImage(true);
     try {
-      // First, remove background
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(imageFile);
-      });
+      // First, remove background using the client-side ai-service
+      const processedBase64 = await removeBackground(imageFile, 'CLOTHING');
 
-      const { data: bgData, error: bgError } = await supabase.functions.invoke('remove-background', {
-        body: { imageBase64: base64.split(',')[1] },
-      });
-
-      if (bgError) throw bgError;
-
-      // Convert base64 result back to blob
-      const processedBase64 = bgData.processedImage;
-      const byteCharacters = atob(processedBase64);
+      // Convert base64 data url back to blob
+      const base64Data = processedBase64.split(',')[1] || processedBase64;
+      const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
