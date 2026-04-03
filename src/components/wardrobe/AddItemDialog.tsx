@@ -82,54 +82,11 @@ export function AddItemDialog({ open, onOpenChange, onAdd }: AddItemDialogProps)
     try {
       console.log('Invoking clothing analysis...');
 
-      let data: any = null;
-      let error: any = null;
-
-      // 1. Try local Python service directly first (bypasses remote Supabase Edge Function)
-      try {
-        console.log('Attempting direct local analysis...');
-        const fetchResponse = await fetch(base64Image);
-        const blob = await fetchResponse.blob();
-
-        const formData = new FormData();
-        formData.append('file', blob, 'image.jpg');
-
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3011';
-        // Note: Analysis service usually runs on port 8000 locally, but in production 
-        // we use the same main backend URL which proxies or handles both.
-        const localResponse = await fetch(`${backendUrl}/api/analyze`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (localResponse.ok) {
-          const result = await localResponse.json();
-          console.log('Direct local analysis successful:', result);
-          // Map local result to the expected format
-          data = {
-            name: result.name,
-            category: result.category,
-            type: result.type,
-            color: result.color,
-            confidence: result.confidence,
-            ai_description: `${result.color.charAt(0).toUpperCase() + result.color.slice(1)} ${result.type} detected with ${Math.round(result.confidence * 100)}% confidence.`
-          };
-        } else {
-          console.warn('Direct local analysis failed, falling back to edge function...');
-        }
-      } catch (localErr) {
-        console.warn('Could not reach local service directly, falling back to edge function:', localErr);
-      }
-
-      // 2. Fallback to Supabase Edge Function if direct call failed
-      if (!data) {
-        console.log('Invoking analyze-clothing edge function...');
-        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('analyze-clothing', {
-          body: { imageUrl: base64Image },
-        });
-        data = edgeData;
-        error = edgeError;
-      }
+      // Use Supabase Edge Function directly as it's the most reliable in production
+      console.log('Invoking analyze-clothing edge function...');
+      const { data, error } = await supabase.functions.invoke('analyze-clothing', {
+        body: { imageUrl: base64Image },
+      });
 
       if (error) {
         console.error('Analysis error:', error);
