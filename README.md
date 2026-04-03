@@ -1,4 +1,4 @@
-# Antigravity Flight (Wearwise)
+# (Wearwise)
 
 This project consists of a React frontend, a Node.js API server, a Python AI Background Removal service, and Supabase Edge Functions. To run the full stack locally, you need to start these components.
 
