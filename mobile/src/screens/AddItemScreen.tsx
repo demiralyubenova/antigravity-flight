@@ -1,9 +1,9 @@
 /**
  * Add Item Screen - EXACT port of web's AddItemDialog.tsx
  * Flow: Pick photo → AI analysis (auto-fill) → Edit form → Upload to Supabase Storage → Insert row
- * Background removal is skipped on mobile (Python/rembg is backend-only)
+ * Background removal uses the Express server with @imgly/background-removal-node
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
   Dimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme/useTheme';
 import { Typography, Spacing, BorderRadius, Shadows } from '../theme';
@@ -32,7 +33,7 @@ import {
   CATEGORY_LABELS,
   SUBCATEGORY_OPTIONS,
 } from '../types';
-import { BackgroundRemover, BackgroundRemoverRef } from '../components/BackgroundRemover';
+import { removeBackgroundServer } from '../services/backgroundRemoval';
 import { Sparkles } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -59,7 +60,6 @@ export default function AddItemScreen() {
   const [removingBg, setRemovingBg] = useState(false);
   const [uploading, setUploading] = useState(false);
   
-  const bgRemoverRef = useRef<BackgroundRemoverRef>(null);
 
   // Reset subcategory when category changes (same as web)
   useEffect(() => {
@@ -77,11 +77,15 @@ export default function AddItemScreen() {
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [3, 4],
-      quality: 0.8,
-      base64: true,
+      quality: 1, // Capture highest so we resize manually
     });
     if (!result.canceled && result.assets[0]) {
-      handleImage(result.assets[0]);
+      const resized = await ImageManipulator.manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 800 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+      handleImage(resized);
     }
   };
 
@@ -94,15 +98,19 @@ export default function AddItemScreen() {
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [3, 4],
-      quality: 0.8,
-      base64: true,
+      quality: 1,
     });
     if (!result.canceled && result.assets[0]) {
-      handleImage(result.assets[0]);
+      const resized = await ImageManipulator.manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 800 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+      handleImage(resized);
     }
   };
 
-  const handleImage = async (asset: ImagePicker.ImagePickerAsset) => {
+  const handleImage = async (asset: any) => {
     setImageUri(asset.uri);
     const b64 = asset.base64
       ? `data:image/jpeg;base64,${asset.base64}`
@@ -115,11 +123,9 @@ export default function AddItemScreen() {
       
       setRemovingBg(true);
       try {
-        if (bgRemoverRef.current) {
-          const newBgResult = await bgRemoverRef.current.processImage(b64);
-          setImageUri(newBgResult);
-          setImageBase64(newBgResult);
-        }
+        const processedImage = await removeBackgroundServer(b64);
+        setImageUri(processedImage);
+        setImageBase64(processedImage);
       } catch (err: any) {
         console.warn('Background removal failed:', err.message);
         Alert.alert('Could not remove background', 'Using original image instead.');
@@ -449,9 +455,6 @@ export default function AddItemScreen() {
             </Text>
           )}
         </TouchableOpacity>
-
-        {/* Include Hidden WebView for Background Removal */}
-        <BackgroundRemover ref={bgRemoverRef} />
 
         <View style={{ height: 40 }} />
       </ScrollView>

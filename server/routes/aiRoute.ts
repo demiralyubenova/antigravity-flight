@@ -1,71 +1,78 @@
 
 import express from 'express';
 import multer from 'multer';
-
-const PYTHON_URL = 'http://localhost:8000';
+import { removeBackground } from '@imgly/background-removal-node';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
-// Check if Python server is reachable
-async function checkPythonServer(): Promise<boolean> {
-    try {
-        const fetch = (await import('node-fetch')).default as any;
-        const resp = await fetch(`${PYTHON_URL}/health`, { timeout: 2000 });
-        return resp.ok;
-    } catch {
-        return false;
-    }
-}
-
+/**
+ * POST /api/remove-background
+ * 
+ * Accepts either:
+ *   - JSON body: { imageUrl: "data:image/jpeg;base64,..." }
+ *   - Multipart form: file field with image
+ * 
+ * Returns: { result: "data:image/png;base64,..." }
+ * 
+ * Uses @imgly/background-removal-node — the Node.js version of the same
+ * library the web app uses client-side (@imgly/background-removal).
+ */
 router.post('/remove-background', upload.single('file'), async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ error: 'No file uploaded' });
+        let imageInput: Blob | string;
+
+        if (req.body?.imageUrl) {
+            // JSON body with base64 data URL (from mobile app)
+            const dataUrl = req.body.imageUrl as string;
+            console.log('Received base64 image for background removal, length:', dataUrl.length);
+
+            // Convert data URL to Blob for imgly
+            const base64Data = dataUrl.split(',')[1];
+            const mimeMatch = dataUrl.match(/data:([^;]+);/);
+            const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+            const binaryData = Buffer.from(base64Data, 'base64');
+            imageInput = new Blob([binaryData], { type: mimeType });
+
+        } else if (req.file) {
+            // Multipart file upload (from web app or other clients)
+            const fs = await import('fs');
+            const fileBuffer = fs.readFileSync(req.file.path);
+            imageInput = new Blob([fileBuffer], { type: req.file.mimetype || 'image/jpeg' });
+
+            // Cleanup uploaded temp file
+            try { fs.unlinkSync(req.file.path); } catch (e) { }
+
+        } else {
+            return res.status(400).json({ error: 'No image provided. Send either { imageUrl: "data:..." } or a file upload.' });
         }
 
-        const healthy = await checkPythonServer();
-        if (!healthy) {
-            console.error('Python server not reachable at', PYTHON_URL);
-            return res.status(503).json({ error: 'Background removal service is starting up, please try again in a few seconds' });
-        }
+        console.log('Starting background removal with @imgly/background-removal-node...');
+        const startTime = Date.now();
 
-        const fs = await import('fs');
-        const FormData = (await import('form-data')).default;
-        const fetch = (await import('node-fetch')).default as any;
-
-        const formData = new FormData();
-        formData.append('file', fs.createReadStream(req.file.path), {
-            filename: req.file.originalname,
-            contentType: req.file.mimetype
+        // Run background removal — same library as the web app
+        const resultBlob = await removeBackground(imageInput, {
+            model: 'medium',
+            output: {
+                format: 'image/png',
+                quality: 0.9,
+            },
         });
 
-        console.log('Sending image to Python server for background removal...');
-        const pyResponse = await fetch(`${PYTHON_URL}/remove-bg`, {
-            method: 'POST',
-            body: formData as any,
-            headers: formData.getHeaders(),
-            timeout: 60000, // 60s timeout for CPU-based background removal
-        });
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`Background removal complete in ${elapsed}s`);
 
-        if (!pyResponse.ok) {
-            const errorText = await pyResponse.text();
-            console.error('Python server error:', pyResponse.status, errorText);
-            throw new Error(`Python Vision Service Error: ${errorText}`);
-        }
+        // Convert result Blob to base64 data URL
+        const arrayBuffer = await resultBlob.arrayBuffer();
+        const resultBuffer = Buffer.from(arrayBuffer);
+        const base64Result = `data:image/png;base64,${resultBuffer.toString('base64')}`;
 
-        // Convert PNG response to base64
-        const buffer = Buffer.from(await pyResponse.arrayBuffer());
-        const base64 = `data:image/png;base64,${buffer.toString('base64')}`;
-        console.log('Background removal successful, response size:', buffer.length);
+        console.log('Result size:', resultBuffer.length, 'bytes');
+        res.json({ result: base64Result });
 
-        // Cleanup upload
-        try { fs.unlinkSync(req.file.path); } catch(e){}
-
-        res.json({ result: base64 });
     } catch (error: any) {
-        console.error('Error processing background removal:', error.message);
-        res.status(500).json({ error: error.message || 'Failed to process image' });
+        console.error('Error in background removal:', error.message || error);
+        res.status(500).json({ error: error.message || 'Failed to remove background' });
     }
 });
 
