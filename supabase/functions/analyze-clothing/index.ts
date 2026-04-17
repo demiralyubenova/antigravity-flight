@@ -37,8 +37,8 @@ serve(async (req) => {
 
     const apiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY') || Deno.env.get('GEMINI_API_KEY');
 
-    // Use gemini-1.5-flash as the fallback 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // Use gemini-2.5-flash as the fallback 
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     
     const requestBody = {
       contents: [

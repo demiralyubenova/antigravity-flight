@@ -3,7 +3,7 @@
  * Flow: Pick photo → AI analysis (auto-fill) → Edit form → Upload to Supabase Storage → Insert row
  * Background removal is skipped on mobile (Python/rembg is backend-only)
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,8 @@ import {
   CATEGORY_LABELS,
   SUBCATEGORY_OPTIONS,
 } from '../types';
+import { BackgroundRemover, BackgroundRemoverRef } from '../components/BackgroundRemover';
+import { Sparkles } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -54,7 +56,10 @@ export default function AddItemScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [removingBg, setRemovingBg] = useState(false);
   const [uploading, setUploading] = useState(false);
+  
+  const bgRemoverRef = useRef<BackgroundRemoverRef>(null);
 
   // Reset subcategory when category changes (same as web)
   useEffect(() => {
@@ -97,16 +102,30 @@ export default function AddItemScreen() {
     }
   };
 
-  const handleImage = (asset: ImagePicker.ImagePickerAsset) => {
+  const handleImage = async (asset: ImagePicker.ImagePickerAsset) => {
     setImageUri(asset.uri);
     const b64 = asset.base64
       ? `data:image/jpeg;base64,${asset.base64}`
       : null;
     setImageBase64(b64);
 
-    // Trigger AI analysis (same as web's parallel call)
     if (b64) {
+      // Run AI tagging and background removal in parallel
       analyzeClothing(b64);
+      
+      setRemovingBg(true);
+      try {
+        if (bgRemoverRef.current) {
+          const newBgResult = await bgRemoverRef.current.processImage(b64);
+          setImageUri(newBgResult);
+          setImageBase64(newBgResult);
+        }
+      } catch (err: any) {
+        console.warn('Background removal failed:', err.message);
+        Alert.alert('Could not remove background', 'Using original image instead.');
+      } finally {
+        setRemovingBg(false);
+      }
     }
   };
 
@@ -242,7 +261,15 @@ export default function AddItemScreen() {
                     </Text>
                   </View>
                 )}
-                {!analyzing && (
+                {removingBg && (
+                  <View style={[styles.analyzingOverlay, { backgroundColor: colors.background + 'CC' }]}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={[styles.analyzingText, { color: colors.primary }]}>
+                      Removing background...
+                    </Text>
+                  </View>
+                )}
+                {(!analyzing && !removingBg) && (
                   <TouchableOpacity
                     style={[styles.removeBtn, { backgroundColor: colors.destructive }]}
                     onPress={clearImage}
@@ -251,10 +278,11 @@ export default function AddItemScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              {!analyzing && (
+              {(!analyzing && !removingBg) && (
                 <View style={styles.sparkleRow}>
+                  <Sparkles size={14} color={colors.primary} style={{ marginRight: 4 }} />
                   <Text style={[styles.sparkleText, { color: colors.primary }]}>
-                    ✨ AI analysis {name ? 'complete' : 'in progress'}
+                    ✨ AI auto-analyzed & mapped
                   </Text>
                 </View>
               )}
@@ -422,6 +450,9 @@ export default function AddItemScreen() {
           )}
         </TouchableOpacity>
 
+        {/* Include Hidden WebView for Background Removal */}
+        <BackgroundRemover ref={bgRemoverRef} />
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -542,7 +573,7 @@ const createStyles = (colors: any) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    sparkleRow: { marginTop: Spacing.sm },
+    sparkleRow: { marginTop: Spacing.sm, flexDirection: 'row', alignItems: 'center' },
     sparkleText: { fontSize: Typography.fontSize.xs },
     // AI description
     aiDescBox: {

@@ -1,0 +1,1 @@
+import { removeBackground } from "@imgly/background-removal"; import fs from "fs"; global.crossOriginIsolated = false; async function test() { const blob = new Blob([fs.readFileSync("../test.jpg")], { type: "image/jpeg" }); console.log("running"); await removeBackground(blob); console.log("done"); } test();
