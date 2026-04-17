@@ -35,10 +35,10 @@ serve(async (req) => {
       mimeType = response.headers.get('content-type') || 'image/jpeg';
     }
 
-    const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_GEMINI_API_KEY') || "AIzaSyCEZg-KDQD2WpBaZ1CgygovRGT7GeRoLcE";
+    const apiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY') || Deno.env.get('GEMINI_API_KEY');
 
-    // Revert to documented robust model alias
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+    // Use gemini-1.5-flash as the fallback 
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
     const requestBody = {
       contents: [
