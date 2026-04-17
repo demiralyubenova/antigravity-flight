@@ -32,7 +32,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 safe-area-pt">
         {!isCollapsed && (
           <span className="font-display text-xl font-bold px-2">Wear Wise</span>
         )}

@@ -22,8 +22,12 @@ export const removeBackground = async (file: File, type: 'CLOTHING' | 'PERSON' =
             img.src = URL.createObjectURL(file);
         });
         
-        // Use imgly to remove background locally in the browser
-        const imageBlob = await imglyRemoveBackground(safeBlob as any);
+        // Use imgly to remove background locally in the browser with explicit CDN path
+        // This is CRITICAL for iOS Capacitor because WKWebView restricts local fetch on massive WASM files
+        // and doesn't support SharedArrayBuffer for the threaded version locally without headers.
+        const imageBlob = await imglyRemoveBackground(safeBlob as any, {
+            publicPath: 'https://static.imgly.com/@imgly/background-removal-data/1.7.0/dist/'
+        });
         
         // Convert the returned Blob into a base64 data URL
         const base64 = await new Promise<string>((resolve, reject) => {

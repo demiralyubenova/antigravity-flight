@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Shirt, Palette, History, BarChart3, Sparkles, MessageCircle, Plane } from 'lucide-react';
+import { Shirt, Palette, History, BarChart3, Sparkles, MessageCircle, Plane, ShoppingBag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -9,6 +9,7 @@ const navItems = [
   { path: '/history', label: 'History', icon: History },
   { path: '/travel', label: 'Travel', icon: Plane },
   { path: '/insights', label: 'Insights', icon: BarChart3 },
+  { path: '/wishlist', label: 'Wishlist', icon: ShoppingBag },
   { path: '/stylist', label: 'Stylist', icon: MessageCircle },
 ];
 
@@ -16,7 +17,7 @@ export function BottomNav() {
   const location = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border safe-area-pb">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border safe-area-pb md:hidden">
       <div className="flex items-center overflow-x-auto scrollbar-hide px-1 py-2">
         {navItems.map(({ path, label, icon: Icon }) => {
           const isActive = location.pathname === path;

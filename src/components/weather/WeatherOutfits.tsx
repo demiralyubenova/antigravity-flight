@@ -92,11 +92,31 @@ export function WeatherOutfits() {
         setLocationLoading(false);
         fetchWeatherOutfits(latitude, longitude);
       },
-      (error) => {
+      async (error) => {
         console.error('Geolocation error:', error);
+        console.log('Falling back to IP-based location...');
+        try {
+          const ipResponse = await fetch('https://ipapi.co/json/');
+          if (ipResponse.ok) {
+            const data = await ipResponse.json();
+            if (data.latitude && data.longitude) {
+              setLocation({ lat: data.latitude, lon: data.longitude });
+              const city = data.city || '';
+              const state = data.region || '';
+              setLocationName(city ? `${city}${state ? `, ${state}` : ''}` : '(Approximate location)');
+              setLocationLoading(false);
+              fetchWeatherOutfits(data.latitude, data.longitude);
+              return;
+            }
+          }
+        } catch (ipError) {
+          console.error('IP Geolocation fallback failed:', ipError);
+        }
+        
         toast({ title: 'Location access denied', description: 'Please enable location access to get weather-based suggestions.', variant: 'destructive' });
         setLocationLoading(false);
-      }
+      },
+      { timeout: 10000 }
     );
   };
 
@@ -247,7 +267,7 @@ export function WeatherOutfits() {
                       {items.map((item) => item && (
                         <div key={item.id} className="relative aspect-square rounded-lg overflow-hidden border bg-muted group">
                           <img
-                            src={item.image_url}
+                            src={item.image_url || '/placeholder.svg'}
                             alt={item.name}
                             className="w-full h-full object-cover transition-transform group-hover:scale-105"
                           />

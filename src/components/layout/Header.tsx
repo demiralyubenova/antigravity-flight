@@ -35,7 +35,7 @@ export function Header({ title, subtitle }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-40 glass border-b border-border">
+    <header className="sticky top-0 z-40 glass border-b border-border safe-area-pt">
       <div className="flex items-center justify-between px-4 py-4">
         <div>
           <h1 className="font-display text-2xl font-medium tracking-tight">{title}</h1>

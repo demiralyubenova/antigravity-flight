@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { AppSidebar, SidebarToggle } from './AppSidebar';
+import { BottomNav } from './BottomNav';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { LogOut, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -42,7 +43,7 @@ export function AppLayout({ children, title, subtitle, showNav = true }: AppLayo
   if (!showNav) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-40 glass border-b border-border">
+        <header className="sticky top-0 z-40 glass border-b border-border safe-area-pt">
           <div className="flex items-center justify-between px-4 py-4">
             <div>
               <h1 className="font-display text-2xl font-medium tracking-tight">{title}</h1>
@@ -63,10 +64,12 @@ export function AppLayout({ children, title, subtitle, showNav = true }: AppLayo
         <AppSidebar />
         
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-40 glass border-b border-border">
+          <header className="sticky top-0 z-40 glass border-b border-border safe-area-pt">
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-3">
-                <SidebarToggle />
+                <div className="hidden md:block">
+                  <SidebarToggle />
+                </div>
                 <div>
                   <h1 className="font-display text-xl font-medium tracking-tight">{title}</h1>
                   {subtitle && (
@@ -111,9 +114,10 @@ export function AppLayout({ children, title, subtitle, showNav = true }: AppLayo
             </div>
           </header>
           
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 relative">
             {children}
           </main>
+          <BottomNav />
         </div>
       </div>
     </SidebarProvider>

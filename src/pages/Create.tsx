@@ -654,7 +654,7 @@ export default function Create() {
                                 <div key={item.id} className="space-y-1">
                                   <div className="aspect-square rounded-lg overflow-hidden bg-muted border border-border">
                                     <img
-                                      src={item.image_url}
+                                      src={item.image_url || '/placeholder.svg'}
                                       alt={item.name}
                                       className="w-full h-full object-cover"
                                     />

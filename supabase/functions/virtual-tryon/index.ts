@@ -156,6 +156,18 @@ The clothing must match the uploaded images precisely - do not alter, enhance, o
     }
 
     const data = await response.json();
+
+    // Calculate and log request cost
+    if (data.usageMetadata) {
+      const inputTokens = data.usageMetadata.promptTokenCount || 0;
+      const outputTokens = data.usageMetadata.candidatesTokenCount || 0;
+      // gemini-2.5-flash pricing: $0.075 per 1M input tokens, $0.30 per 1M output tokens
+      const inputCost = (inputTokens / 1_000_000) * 0.075;
+      const outputCost = (outputTokens / 1_000_000) * 0.30;
+      const totalCost = (inputCost + outputCost).toFixed(6);
+      console.log(`🤑 Gemini Request Cost [virtual-tryon]: $${totalCost} (${inputTokens} input tokens, ${outputTokens} output tokens)`);
+    }
+
     return processGeminiResponse(data, corsHeaders);
   } catch (error) {
     console.error('Error in virtual try-on:', error);

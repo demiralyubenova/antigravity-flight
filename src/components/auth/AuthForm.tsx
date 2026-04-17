@@ -78,7 +78,7 @@ export function AuthForm() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-background">
+    <div className="min-h-screen flex flex-col md:flex-row bg-background safe-area-pt safe-area-pb">
       {/* Left Side - Orbiting Animation */}
       <div className="hidden md:flex md:w-1/2 relative items-center justify-center bg-muted/30 overflow-hidden">
         <Ripple mainCircleSize={180} numCircles={8} mainCircleOpacity={0.15} />

@@ -155,4 +155,12 @@
     backdrop-filter: blur(12px);
     background-color: hsl(var(--background) / 0.8);
   }
+
+  /* Safe Area Insets for Mobile App */
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
